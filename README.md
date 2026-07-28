@@ -1,4 +1,4 @@
-# 🎓 SISIP Program - Early Warning System & Prediksi Mahasiswa Berpotensi Sisip
+# SISIP Program - Early Warning System & Prediksi Mahasiswa Berpotensi Sisip
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)
 ![Flask](https://img.shields.io/badge/Flask-3.0%2B-green?style=for-the-badge&logo=flask)
@@ -11,29 +11,29 @@
 
 ---
 
-## 📌 Fitur Utama
+## Fitur Utama
 
-- 📊 **Interactive Analytics Dashboard**: Visualisasi ringkasan statistik mahasiswa berpotensi sisip vs aman secara *real-time* dengan grafik Chart.js.
-- 🎯 **Filter Spesifik**: Filter data berdasarkan **Program Studi (Prodi)**, **Angkatan**, dan **Semester**.
-- 🧠 **2D CNN Tabular Engine**: Menggunakan arsitektur Convolutional Neural Network 2D yang diadaptasi khusus untuk pengenalan pola data tabular akademis.
-- 📁 **Batch Prediction via Excel**: Unggah berkas Excel rekap nilai mahasiswa untuk prediksi massal otomatis beserta unduh *template format Excel*.
-- 👤 **Detail Mahasiswa & Transkrip Akademik**: Modal/halaman khusus rincian mahasiswa (NIM, Nama, Prodi, IPK per semester, dan riwayat nilai mata kuliah).
-- 📄 **Cetak Laporan PDF**: Fitur ekspor laporan hasil prediksi dan detail mahasiswa ke format PDF (`jsPDF` & `jspdf-autotable`).
-- 👥 **Multi-Role User Control**:
+- **Interactive Analytics Dashboard**: Visualisasi ringkasan statistik mahasiswa berpotensi sisip vs aman secara *real-time* dengan grafik Chart.js.
+- **Filter Spesifik**: Filter data berdasarkan Program Studi (Prodi), Angkatan, dan Semester.
+- **2D CNN Tabular Engine**: Menggunakan arsitektur Convolutional Neural Network 2D yang diadaptasi khusus untuk pengenalan pola data tabular akademis.
+- **Batch Prediction via Excel**: Unggah berkas Excel rekap nilai mahasiswa untuk prediksi massal otomatis beserta unduh template format Excel.
+- **Detail Mahasiswa & Transkrip Akademik**: Modal/halaman khusus rincian mahasiswa (NIM, Nama, Prodi, IPK per semester, dan riwayat nilai mata kuliah).
+- **Cetak Laporan PDF**: Fitur ekspor laporan hasil prediksi dan detail mahasiswa ke format PDF (`jsPDF` & `jspdf-autotable`).
+- **Multi-Role User Control**:
   - **End-User / DPA / Kaprodi**: Akses instan prediksi batch, filter bimbingan DPA/Prodi, dan pemantauan mahasiswa berisiko.
   - **Admin System**: Kebebasan eksperimen training model, pengaturan hyperparameter, dan manajemen riwayat batch.
 
 ---
 
-## 🏗️ Arsitektur & Teknologi
+## Arsitektur & Teknologi
 
-### **Backend Stack**
+### Backend Stack
 - **Bahasa & Framework**: Python 3.10+, Flask, Gunicorn
 - **Machine Learning / Deep Learning**: TensorFlow / Keras (2D CNN Tabular Model), Scikit-Learn, Pandas, NumPy
 - **Database**: SQLite (`sisip_database.db`)
 - **Excel Processor**: OpenPyXL
 
-### **Frontend Stack**
+### Frontend Stack
 - **Framework & Build Tool**: React 18, Vite
 - **Styling**: Tailwind CSS v4, Lucide React Icons
 - **Visualisasi & Ekspor**: Chart.js, jsPDF, jsPDF-AutoTable
@@ -41,7 +41,7 @@
 
 ---
 
-## 📂 Struktur Direktori Proyek
+## Struktur Direktori Proyek
 
 ```text
 sisip-program/
@@ -56,22 +56,21 @@ sisip-program/
 │   └── index.html           # Root HTML Template
 ├── html-files/              # Mockup HTML Static (Referensi UI)
 ├── cnn_tabular_2d_v2.py     # Script eksperimen training model 2D CNN Tabular
-├── PANDUAN_SERVER.md        # Panduan deployment server WSL2 Windows
 ├── .gitignore               # Aturan pengabaian file Git
 └── README.md                # Dokumentasi proyek
 ```
 
 ---
 
-## 🚀 Panduan Instalasi & Penggunaan Lokal
+## Panduan Instalasi & Penggunaan Lokal
 
-### **Prasyarat Sistem**
+### Prasyarat Sistem
 - Python 3.10 atau versi lebih baru
 - Node.js 18 LTS atau versi lebih baru & npm
 
 ---
 
-### **1. Setup Backend (Flask API)**
+### 1. Setup Backend (Flask API)
 
 1. Masuk ke direktori backend:
    ```bash
@@ -104,7 +103,7 @@ sisip-program/
 
 ---
 
-### **2. Setup Frontend (React + Vite)**
+### 2. Setup Frontend (React + Vite)
 
 1. Masuk ke direktori frontend:
    ```bash
@@ -124,15 +123,7 @@ sisip-program/
 
 ---
 
-## 🖥️ Panduan Deployment Server
-
-Untuk mengubah komputer desktop Windows menjadi server lokal (*On-Premise Server*) yang siap digunakan di jaringan kampus/instansi menggunakan **WSL2 Ubuntu**, **Gunicorn**, dan **Nginx**, silakan baca panduan lengkap pada dokumen:
-
-📖 **[PANDUAN_SERVER.md](PANDUAN_SERVER.md)**
-
----
-
-## 🔒 Kebijakan Keamanan & Kerahasiaan Data
+## Kebijakan Keamanan & Kerahasiaan Data
 
 Demi menjaga keamanan dan kerahasiaan data pribadi mahasiswa (*Data Privacy & Protection*):
 - File **Excel** (`.xlsx`, `.xls`, `.csv`) yang berisi rekapitulasi data mahasiswa **TIDAK dimasukkan** ke dalam repositori GitHub.
@@ -140,6 +131,6 @@ Demi menjaga keamanan dan kerahasiaan data pribadi mahasiswa (*Data Privacy & Pr
 
 ---
 
-## 📝 Lisensi
+## Lisensi
 
 Proyek ini dikembangkan untuk kebutuhan internal akademik dan evaluasi hasil belajar mahasiswa. 100% menggunakan teknologi berbasis *Open Source*.
