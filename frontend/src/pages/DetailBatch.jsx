@@ -53,7 +53,7 @@ const DetailBatch = () => {
     );
   }
 
-  const passRate = batch.total_records > 0 ? ((batch.safe / batch.total_records) * 100).toFixed(1) : 0;
+  const sisipRate = batch.total_records > 0 ? ((batch.at_risk / batch.total_records) * 100).toFixed(1) : 0;
   
   const flaggedStudents = batch.results.filter(r => {
     if (filterParam === 'tidak_sisip') return !r.is_risk;
@@ -72,22 +72,26 @@ const DetailBatch = () => {
     
     doc.setFontSize(11);
     doc.setTextColor(100);
-    doc.text(`Total Diproses: ${batch.total_records} | Mahasiswa Berisiko: ${batch.at_risk} | Tingkat Kelulusan: ${passRate}%`, 14, 30);
+    doc.text(`Total Diproses: ${batch.total_records} | Mahasiswa Berisiko: ${batch.at_risk} | Persentase Sisip: ${sisipRate}%`, 14, 30);
     doc.text(`Tanggal Upload: ${batch.date_uploaded}`, 14, 36);
 
-    const tableData = flaggedStudents.map(student => [
-      student.nim,
-      student.pmb,
-      student.prediction
-    ]);
+    const tableData = flaggedStudents.map(student => {
+       const details = student.details ? JSON.parse(student.details) : {};
+       return [
+         student.nim,
+         details.nama || '-',
+         details.prodi || '-',
+         student.prediction
+       ];
+    });
 
     if (tableData.length === 0) {
-      tableData.push(['-', '-', 'Tidak ada mahasiswa berisiko']);
+      tableData.push(['-', '-', '-', 'Tidak ada mahasiswa di kategori ini']);
     }
 
     autoTable(doc, {
       startY: 45,
-      head: [['NIM', 'Nomor PMB', 'Prediksi']],
+      head: [['NIM', 'Nama Mahasiswa', 'Prodi', 'Prediksi']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [128, 0, 0] }
@@ -133,9 +137,9 @@ const DetailBatch = () => {
                 <p className="text-xs text-red-800 uppercase font-semibold mb-1">Beresiko</p>
                 <p className="text-2xl font-bold text-red-600">{batch.at_risk}</p>
               </div>
-              <div className="bg-green-50 border border-green-100 rounded-xl px-6 py-4 text-center">
-                <p className="text-xs text-green-800 uppercase font-semibold mb-1">Tingkat Kelulusan</p>
-                <p className="text-2xl font-bold text-green-600">{passRate}%</p>
+              <div className="bg-red-50 border border-red-100 rounded-xl px-6 py-4 text-center">
+                <p className="text-xs text-red-800 uppercase font-semibold mb-1">Persentase Sisip</p>
+                <p className="text-2xl font-bold text-red-600">{sisipRate}%</p>
               </div>
             </div>
           </div>
@@ -160,27 +164,26 @@ const DetailBatch = () => {
               <table className="w-full text-left text-sm text-gray-600">
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-border">
                   <tr>
-                    <th scope="col" className="px-6 py-4 font-semibold w-1/3">NIM</th>
-                    <th scope="col" className="px-6 py-4 font-semibold w-1/3">Nomor PMB</th>
-                    <th scope="col" className="px-6 py-4 font-semibold text-right w-1/3">Status Saat Diproses</th>
+                    <th scope="col" className="px-6 py-4 font-semibold w-1/4">NIM</th>
+                    <th scope="col" className="px-6 py-4 font-semibold w-1/2">Nama Mahasiswa</th>
+                    <th scope="col" className="px-6 py-4 font-semibold text-right w-1/4">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {flaggedStudents.map((student, idx) => (
+                  {flaggedStudents.map((student, idx) => {
+                    const details = student.details ? JSON.parse(student.details) : {};
+                    return (
                     <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                       <td className="px-6 py-4 font-medium text-secondary">{student.nim}</td>
-                      <td className="px-6 py-4">{student.pmb}</td>
+                      <td className="px-6 py-4">{details.nama || '-'}</td>
                       <td className="px-6 py-4 text-right">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                          filterParam === 'tidak_sisip'
-                            ? 'bg-green-100 text-green-800 border-green-200'
-                            : 'bg-red-100 text-red-800 border-red-200'
-                        }`}>
-                          {student.prediction}
-                        </span>
+                        <Link to={`/detail/${student.nim}`} className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-md hover:bg-primary/20 transition-colors">
+                          Lihat Detail
+                        </Link>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {flaggedStudents.length === 0 && (
                     <tr className="bg-white">
                       <td colSpan="3" className="px-6 py-4 text-center text-gray-500">{emptyText}</td>

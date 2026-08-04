@@ -1,15 +1,94 @@
-import React, { useState } from 'react';
-import { ArrowLeft, User, AlertTriangle, BookOpen, TrendingDown, Layers, ShieldAlert, XCircle, Printer, Mail } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, User, AlertTriangle, BookOpen, TrendingDown, Layers, ShieldAlert, XCircle, Printer, Mail, GraduationCap } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { useParams, Link } from 'react-router-dom';
+import axios from 'axios';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const DetailStudent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { nim } = useParams();
-
-  // In a real app, you would fetch the student's full data from the backend using the nim
   
+  const [studentData, setStudentData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStudent = async () => {
+      try {
+        const response = await axios.get(`http://localhost:5000/api/student/${nim}`);
+        setStudentData(response.data);
+      } catch (error) {
+        console.error("Gagal mengambil data mahasiswa", error);
+      }
+      setLoading(false);
+    };
+    fetchStudent();
+  }, [nim]);
+
+  if (loading) {
+    return (
+      <div className="bg-background font-sans text-secondary antialiased h-screen flex flex-col lg:flex-row overflow-hidden">
+        <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+        <main className="flex-1 flex items-center justify-center">
+          <p className="text-gray-500">Memuat profil mahasiswa...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!studentData) {
+    return (
+      <div className="bg-background font-sans text-secondary antialiased h-screen flex flex-col lg:flex-row overflow-hidden">
+        <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+        <main className="flex-1 flex flex-col items-center justify-center">
+          <p className="text-red-500">Data mahasiswa tidak ditemukan.</p>
+          <Link to="/results" className="mt-4 text-primary underline">Kembali</Link>
+        </main>
+      </div>
+    );
+  }
+
+  const { details = {}, prediction, is_risk } = studentData;
+  const { nama = '-', prodi = '-', ipk1 = 0, ipk2 = 0, ipk3 = 0, sks3 = 0, failed_subjects = [] } = details;
+
+  const handlePrintProfile = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('Profil dan Laporan Prediksi Mahasiswa', 14, 22);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(50);
+    doc.text(`Nama Mahasiswa: ${nama}`, 14, 32);
+    doc.text(`NIM: ${nim}`, 14, 38);
+    doc.text(`Program Studi: ${prodi}`, 14, 44);
+    
+    doc.setLineWidth(0.5);
+    doc.line(14, 48, 196, 48);
+
+    doc.setFontSize(11);
+    doc.text(`Hasil Prediksi: ${prediction}`, 14, 56);
+    doc.text(`Status Risiko: ${is_risk ? 'Tinggi (Berpotensi Sisip)' : 'Aman'}`, 14, 62);
+    doc.text(`IPK Sem 1: ${ipk1.toFixed(2)} | IPK Sem 2: ${ipk2.toFixed(2)} | IPK Sem 3: ${ipk3.toFixed(2)}`, 14, 68);
+    
+    if (failed_subjects.length > 0) {
+      doc.text('Daftar Nilai Belum Lulus (D, E, T):', 14, 78);
+      const tableData = failed_subjects.map(s => [s.matkul, s.nilai]);
+      autoTable(doc, {
+        startY: 82,
+        head: [['Mata Kuliah', 'Nilai']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [128, 0, 0] }
+      });
+    } else {
+      doc.text('Tidak ada mata kuliah yang belum lulus.', 14, 78);
+    }
+    
+    doc.save(`Profil_Mahasiswa_${nim}.pdf`);
+  };
+
   return (
     <div className="bg-background font-sans text-secondary antialiased h-screen flex flex-col lg:flex-row overflow-hidden">
       <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
@@ -30,7 +109,7 @@ const DetailStudent = () => {
 
           <div className="max-w-5xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
             {/* Profile Header */}
-            <div className="bg-primary px-8 py-10 text-surface flex flex-col md:flex-row items-center md:items-start justify-between relative overflow-hidden">
+            <div className={`px-8 py-10 text-surface flex flex-col md:flex-row items-center md:items-start justify-between relative overflow-hidden ${is_risk ? 'bg-primary' : 'bg-green-700'}`}>
               <div className="absolute -right-20 -top-20 h-64 w-64 bg-white opacity-5 rounded-full blur-2xl"></div>
               
               <div className="flex items-center z-10">
@@ -38,19 +117,24 @@ const DetailStudent = () => {
                   <User className="h-12 w-12 text-white" />
                 </div>
                 <div className="ml-6">
-                  <h2 className="text-3xl font-bold tracking-tight">Mahasiswa {nim}</h2>
-                  <div className="flex items-center mt-2 space-x-4">
+                  <h2 className="text-3xl font-bold tracking-tight">{nama !== '-' ? nama : `Mahasiswa ${nim}`}</h2>
+                  <div className="flex flex-wrap items-center mt-2 gap-3">
                     <span className="bg-black/20 px-3 py-1 rounded-md text-sm font-medium">NIM: {nim}</span>
-                    <span className="flex items-center text-sm font-medium text-accent">
-                      <AlertTriangle className="h-4 w-4 mr-1" /> Ditandai Beresiko
+                    <span className="bg-black/20 px-3 py-1 rounded-md text-sm font-medium flex items-center">
+                      <GraduationCap className="h-4 w-4 mr-1"/> {prodi}
                     </span>
+                    {is_risk && (
+                      <span className="flex items-center text-sm font-medium text-accent">
+                        <AlertTriangle className="h-4 w-4 mr-1" /> Ditandai Beresiko
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
               
               <div className="mt-6 md:mt-0 flex flex-col items-center justify-center bg-white/10 rounded-xl px-6 py-4 backdrop-blur-sm z-10 border border-white/20">
                 <p className="text-xs uppercase tracking-wider font-semibold text-white/80 mb-1">Hasil Prediksi</p>
-                <p className="text-lg font-bold text-accent">SISIP PROGRAM</p>
+                <p className={`text-lg font-bold ${is_risk ? 'text-accent' : 'text-green-300'}`}>{prediction}</p>
               </div>
             </div>
 
@@ -65,88 +149,74 @@ const DetailStudent = () => {
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">IPK 1</p>
-                      <p className="text-3xl font-bold text-secondary">2.20</p>
+                      <p className="text-3xl font-bold text-secondary">{ipk1.toFixed(2)}</p>
                     </div>
-                    <div className="h-10 w-10 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600">
+                    <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
                       <TrendingDown className="h-5 w-5" />
                     </div>
                   </div>
-                  <div className="mt-4 w-full bg-gray-200 rounded-full h-1.5">
-                    <div className="bg-yellow-500 h-1.5 rounded-full" style={{ width: '55%' }}></div>
-                  </div>
-                  <p className="text-xs text-yellow-600 font-medium mt-2">Peringatan: Ambang Batas</p>
                 </div>
                 
                 <div className="bg-gray-50 border border-border rounded-xl p-5 shadow-sm hover:border-primary/30 transition-colors">
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">IPK 2</p>
-                      <p className="text-3xl font-bold text-secondary">2.00</p>
+                      <p className="text-3xl font-bold text-secondary">{ipk2.toFixed(2)}</p>
                     </div>
-                    <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+                    <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
                       <TrendingDown className="h-5 w-5" />
                     </div>
                   </div>
-                  <div className="mt-4 w-full bg-gray-200 rounded-full h-1.5">
-                    <div className="bg-red-500 h-1.5 rounded-full" style={{ width: '50%' }}></div>
-                  </div>
-                  <p className="text-xs text-red-600 font-medium mt-2">Penurunan Kritis</p>
                 </div>
 
                 <div className="bg-gray-50 border border-border rounded-xl p-5 shadow-sm hover:border-primary/30 transition-colors">
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">IPK 3</p>
-                      <p className="text-3xl font-bold text-secondary">2.10</p>
+                      <p className="text-3xl font-bold text-secondary">{ipk3.toFixed(2)}</p>
                     </div>
-                    <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+                    <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
                       <TrendingDown className="h-5 w-5" />
                     </div>
                   </div>
-                  <div className="mt-4 w-full bg-gray-200 rounded-full h-1.5">
-                    <div className="bg-red-500 h-1.5 rounded-full" style={{ width: '52.5%' }}></div>
-                  </div>
-                  <p className="text-xs text-red-600 font-medium mt-2">Di bawah ambang batas minimum 2.75</p>
                 </div>
                 
                 <div className="bg-gray-50 border border-border rounded-xl p-5 shadow-sm hover:border-primary/30 transition-colors">
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Total SKS 3</p>
-                      <p className="text-3xl font-bold text-secondary">45</p>
+                      <p className="text-3xl font-bold text-secondary">{sks3}</p>
                     </div>
-                    <div className="h-10 w-10 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600">
+                    <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
                       <Layers className="h-5 w-5" />
                     </div>
                   </div>
-                  <div className="mt-4 w-full bg-gray-200 rounded-full h-1.5">
-                    <div className="bg-yellow-500 h-1.5 rounded-full" style={{ width: '31%' }}></div>
-                  </div>
-                  <p className="text-xs text-yellow-600 font-medium mt-2">Tertinggal dari rata-rata semester</p>
                 </div>
               </div>
 
-              <div className="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm mb-6">
                 <h3 className="text-lg font-bold text-red-800 mb-3 flex items-center">
-                  <ShieldAlert className="h-5 w-5 mr-2" /> Faktor Risiko Utama yang Diidentifikasi
+                  <ShieldAlert className="h-5 w-5 mr-2" /> Mata Kuliah Belum Lulus (D, E, T)
                 </h3>
-                <ul className="space-y-2">
-                  <li className="flex items-start">
-                    <XCircle className="h-5 w-5 text-red-500 mr-2 mt-0.5 shrink-0" />
-                    <span className="text-sm text-red-900 font-medium">Penurunan IPK berturut-turut dalam 2 semester terakhir.</span>
-                  </li>
-                  <li className="flex items-start">
-                    <XCircle className="h-5 w-5 text-red-500 mr-2 mt-0.5 shrink-0" />
-                    <span className="text-sm text-red-900 font-medium">Diprediksi sebagai SISIP oleh model pembelajaran mesin.</span>
-                  </li>
-                </ul>
+                {failed_subjects.length > 0 ? (
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {failed_subjects.map((sub, idx) => (
+                      <li key={idx} className="flex items-start bg-white p-3 rounded-lg border border-red-100">
+                        <XCircle className="h-5 w-5 text-red-500 mr-3 mt-0.5 shrink-0" />
+                        <div>
+                           <span className="block text-sm text-red-900 font-bold">{sub.matkul}</span>
+                           <span className="block text-xs text-red-700">Nilai: {sub.nilai}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-green-700 font-medium">Tidak ada riwayat nilai tidak lulus yang tercatat di semester terkait.</p>
+                )}
                 
-                <div className="mt-6 pt-6 border-t border-red-200/50 flex space-x-3">
-                  <button className="px-5 py-2.5 bg-white text-red-700 font-bold border border-red-200 rounded-lg shadow-sm hover:bg-red-50 transition-colors flex items-center">
-                    <Printer className="h-4 w-4 mr-2" /> Cetak Profil
-                  </button>
-                  <button className="px-5 py-2.5 bg-red-600 text-white font-bold rounded-lg shadow-sm hover:bg-red-700 transition-colors flex items-center">
-                    <Mail className="h-4 w-4 mr-2" /> Kirim Surat Peringatan
+                <div className="mt-6 pt-6 border-t border-red-200/50 flex flex-wrap gap-3">
+                  <button onClick={handlePrintProfile} className="px-5 py-2.5 bg-white text-red-700 font-bold border border-red-200 rounded-lg shadow-sm hover:bg-red-50 transition-colors flex items-center">
+                    <Printer className="h-4 w-4 mr-2" /> Cetak Profil (PDF)
                   </button>
                 </div>
               </div>

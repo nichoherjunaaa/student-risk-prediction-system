@@ -137,39 +137,40 @@ const Results = () => {
     
   }, [data, selectedProdi, navigate]);
 
-  const passingRate = data.total > 0 ? ((data.safe / data.total) * 100).toFixed(1) : 0;
+  const sisipRate = data.total > 0 ? ((data.atRisk / data.total) * 100).toFixed(1) : 0;
   const atRiskStudents = data.results.filter(r => r.isRisk);
 
   const handleDownloadPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text('Laporan Prediksi Mahasiswa Berisiko Sisip', 14, 22);
+    doc.text('Laporan Prediksi Mahasiswa Berpotensi Sisip', 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(100);
-    doc.text(`Total Diproses: ${data.total} | Mahasiswa Berisiko: ${data.atRisk} | Tingkat Kelulusan: ${passingRate}%`, 14, 30);
+    doc.text(`Total Diproses: ${data.total} | Berpotensi Sisip: ${data.atRisk} | Persentase Sisip: ${sisipRate}%`, 14, 30);
     doc.text(`Tanggal: ${new Date().toLocaleDateString()}`, 14, 36);
 
     const tableData = atRiskStudents.map(student => [
       student.nim,
-      student.pmb,
+      student.nama || '-',
+      student.prodi || '-',
       student.prediction
     ]);
 
     if (tableData.length === 0) {
-      tableData.push(['-', '-', 'Tidak ada mahasiswa berisiko']);
+      tableData.push(['-', '-', '-', 'Tidak ada mahasiswa berisiko']);
     }
 
     autoTable(doc, {
       startY: 45,
-      head: [['NIM', 'Nomor PMB', 'Prediksi']],
+      head: [['NIM', 'Nama Mahasiswa', 'Prodi', 'Prediksi']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [128, 0, 0] } // Primary color (maroon)
     });
 
     const timestamp = new Date().getTime();
-    doc.save(`Laporan_Prediksi_${timestamp}.pdf`);
+    doc.save(`Laporan_Prediksi_Sisip_${timestamp}.pdf`);
   };
 
   return (
@@ -206,14 +207,21 @@ const Results = () => {
             </div>
             
             <div className="bg-surface rounded-2xl p-6 border border-border shadow-sm flex items-center">
-              <div className="h-12 w-12 rounded-full bg-green-50 flex items-center justify-center mr-4 border border-green-100">
-                <CheckCircle className="h-6 w-6 text-green-600" />
+              <div className="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center mr-4 border border-red-100">
+                <TrendingUp className="h-6 w-6 text-red-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Tingkat Kelulusan Keseluruhan</p>
-                <h3 className="text-2xl font-bold text-secondary mt-1">{passingRate}%</h3>
+                <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Persentase Berpotensi Sisip</p>
+                <h3 className="text-2xl font-bold text-red-600 mt-1">{sisipRate}%</h3>
               </div>
             </div>
+          </div>
+
+          <div className="flex justify-end mb-4 max-w-7xl mx-auto">
+             <button onClick={handleDownloadPDF} className="px-5 py-2.5 bg-primary text-white font-bold rounded-lg hover:bg-primary-dark transition-colors shadow-sm flex items-center">
+                <Download className="h-4 w-4 mr-2" />
+                Unduh Laporan Keseluruhan (PDF)
+              </button>
           </div>
 
           <div className="mb-8 w-full max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border p-6 relative overflow-hidden">
@@ -249,51 +257,6 @@ const Results = () => {
             </div>
           </div>
 
-          <div className="w-full max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
-            <div className="px-6 py-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
-              <div>
-                <h2 className="text-lg font-bold text-secondary flex items-center">
-                  <ClipboardList className="h-5 w-5 mr-2 text-primary" />
-                  Daftar Mahasiswa Beresiko
-                </h2>
-              </div>
-              <button onClick={handleDownloadPDF} className="px-5 py-2.5 bg-primary text-white font-bold rounded-lg hover:bg-primary-dark transition-colors shadow-sm whitespace-nowrap flex items-center">
-                <Download className="h-4 w-4 mr-2" />
-                Unduh Laporan Prediksi (PDF)
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-gray-600">
-                <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-border">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold w-1/4">NIM</th>
-                    <th className="px-6 py-4 font-semibold w-1/2">Nomor PMB</th>
-                    <th className="px-6 py-4 font-semibold text-right w-1/4">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {atRiskStudents.map((student, i) => (
-                    <tr key={i} className="hover:bg-red-50/30 transition-colors">
-                      <td className="px-6 py-4 font-medium text-secondary">{student.nim}</td>
-                      <td className="px-6 py-4">{student.pmb}</td>
-                      <td className="px-6 py-4 text-right">
-                        <Link to={`/detail/${student.nim}`} className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-md hover:bg-primary/20 transition-colors">
-                          <Eye className="h-3.5 w-3.5 mr-1" /> Lihat Detail
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                  {atRiskStudents.length === 0 && (
-                    <tr>
-                      <td colSpan="3" className="px-6 py-4 text-center text-gray-500">
-                        Hore! Berdasarkan prediksi, tidak ada mahasiswa yang masuk kategori At-Risk (Kena Sisip) pada batch ini.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
       </main>

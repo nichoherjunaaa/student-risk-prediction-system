@@ -60,6 +60,7 @@ def init_db():
             pmb TEXT,
             prediction TEXT,
             is_risk BOOLEAN,
+            details TEXT,
             FOREIGN KEY(batch_id) REFERENCES batches(id)
         )
     ''')
@@ -720,6 +721,27 @@ def predict():
     for i, label in enumerate(predicted_labels):
         nim = original_df['NIM'].iloc[i] if 'NIM' in original_df.columns else f'Unknown-{i}'
         pmb = original_df['Nomor Pendaftaran'].iloc[i] if 'Nomor Pendaftaran' in original_df.columns else (original_df['Nomor PMB'].iloc[i] if 'Nomor PMB' in original_df.columns else f'Unknown-{i}')
+        nama = original_df['Nama'].iloc[i] if 'Nama' in original_df.columns else (original_df['Nama Mahasiswa'].iloc[i] if 'Nama Mahasiswa' in original_df.columns else str(nim))
+        prodi_val = original_df['Prodi'].iloc[i] if 'Prodi' in original_df.columns else prodi
+        
+        # Get grades and find failed subjects (e.g. 'D', 'E', 'T')
+        failed_subjects = []
+        for col in original_df.columns:
+            if col not in ['NIM', 'Nomor Pendaftaran', 'Nomor PMB', 'Nama', 'Nama Mahasiswa', 'Prodi', 'Angkatan', 'Label', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3'] and not pd.isna(original_df[col].iloc[i]):
+                val = str(original_df[col].iloc[i]).strip().upper()
+                if val in ['D', 'E', 'T', 'D+', 'D-']:
+                    failed_subjects.append({'matkul': col, 'nilai': val})
+
+        details_dict = {
+            'nama': str(nama),
+            'prodi': str(prodi_val),
+            'ipk1': float(original_df['IPK 1'].iloc[i]) if 'IPK 1' in original_df.columns and not pd.isna(original_df['IPK 1'].iloc[i]) else 0.0,
+            'ipk2': float(original_df['IPK 2'].iloc[i]) if 'IPK 2' in original_df.columns and not pd.isna(original_df['IPK 2'].iloc[i]) else 0.0,
+            'ipk3': float(original_df['IPK 3'].iloc[i]) if 'IPK 3' in original_df.columns and not pd.isna(original_df['IPK 3'].iloc[i]) else 0.0,
+            'sks3': int(original_df['Total SKS 3'].iloc[i]) if 'Total SKS 3' in original_df.columns and not pd.isna(original_df['Total SKS 3'].iloc[i]) else 0,
+            'failed_subjects': failed_subjects
+        }
+
         label_str = str(label).strip().upper()
         is_risk = (label_str == 'SISIP' or 'TIDAK LOLOS' in label_str or label_str == '1' or 'AT RISK' in label_str)
         
@@ -728,11 +750,15 @@ def predict():
         else:
             safe_count += 1
             
+        import json
         results.append({
             'nim': str(nim),
             'pmb': str(pmb),
             'prediction': str(label),
-            'isRisk': is_risk
+            'isRisk': is_risk,
+            'details': json.dumps(details_dict),
+            'nama': str(nama),
+            'prodi': str(prodi_val)
         })
 
     conn = sqlite3.connect(DB_FILE)
@@ -754,10 +780,10 @@ def predict():
     ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan))
     batch_id = c.lastrowid
     
-    pred_data = [(batch_id, r['nim'], r['pmb'], r['prediction'], r['isRisk']) for r in results]
+    pred_data = [(batch_id, r['nim'], r['pmb'], r['prediction'], r['isRisk'], r['details']) for r in results]
     c.executemany('''
-        INSERT INTO predictions (batch_id, nim, pmb, prediction, is_risk)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO predictions (batch_id, nim, pmb, prediction, is_risk, details)
+        VALUES (?, ?, ?, ?, ?, ?)
     ''', pred_data)
     
     conn.commit()
@@ -857,6 +883,34 @@ def activate_model(model_id):
     except Exception as e:
         print(f"Gagal mengaktifkan model prodi: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/student/<nim>', methods=['GET'])
+def get_student(nim):
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    # Get the latest prediction for this nim
+    c.execute('''
+        SELECT p.*, b.batch_name, b.date_uploaded 
+        FROM predictions p 
+        JOIN batches b ON p.batch_id = b.id 
+        WHERE p.nim = ? 
+        ORDER BY p.id DESC LIMIT 1
+    ''', (nim,))
+    row = c.fetchone()
+    conn.close()
+    
+    if not row:
+        return jsonify({'error': 'Student not found'}), 404
+        
+    student_data = dict(row)
+    import json
+    if student_data.get('details'):
+        student_data['details'] = json.loads(student_data['details'])
+    else:
+        student_data['details'] = {}
+        
+    return jsonify(student_data)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
