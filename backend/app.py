@@ -309,15 +309,23 @@ def train_model():
     
     file = request.files['file']
     prodi = request.form.get('prodi', 'Unknown')
-    angkatan = request.form.get('angkatan', 'Unknown')
+    angkatan = request.form.get('angkatan', '')
+    
+    # Ambil hyperparameters dari form
+    epochs_val = int(request.form.get('epochs', 10))
+    batch_size_val = int(request.form.get('batch_size', 32))
+
     try:
         excel_file = pd.ExcelFile(file)
         sheet_to_read = 'TRAIN_SEM3' if 'TRAIN_SEM3' in excel_file.sheet_names else 0
         df = pd.read_excel(excel_file, sheet_name=sheet_to_read)
         
-        # Filter by Prodi if columns exist
-        if 'Prodi' in df.columns and prodi != 'Unknown':
+        # Filter by Prodi and Angkatan if columns exist
+        if 'Prodi' in df.columns and prodi != 'Unknown' and prodi != '':
             df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
+        
+        if 'Angkatan' in df.columns and angkatan != '':
+            df = df[df['Angkatan'].astype(str) == str(angkatan)]
             
         if len(df) == 0:
             return jsonify({'error': f"Tidak ada data latih (TRAIN) untuk Prodi {prodi}."}), 400
@@ -404,8 +412,8 @@ def train_model():
         X_train_reshaped, y_train_cat,
         validation_data=(X_val_reshaped, y_val_cat), 
         class_weight=dict(enumerate(class_weights)),
-        batch_size=32,
-        epochs=10, 
+        batch_size=batch_size_val,
+        epochs=epochs_val, 
         shuffle=False,
         callbacks=[early_stopping],
         verbose=0

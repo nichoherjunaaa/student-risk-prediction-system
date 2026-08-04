@@ -26,6 +26,11 @@ const AdminModel = () => {
 
   // State Saringan Utama Pilihan Prodi Admin
   const [prodi, setProdi] = useState("");
+  const [angkatan, setAngkatan] = useState("");
+
+  // State Hyperparameter Eksperimen Model
+  const [epochs, setEpochs] = useState(10);
+  const [batchSize, setBatchSize] = useState(32);
 
   // State Manajemen Registri Riwayat Model
   const [modelHistory, setModelHistory] = useState([]);
@@ -78,6 +83,9 @@ const AdminModel = () => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("prodi", prodi);
+    formData.append("angkatan", angkatan);
+    formData.append("epochs", epochs);
+    formData.append("batch_size", batchSize);
 
     try {
       const response = await axios.post(
@@ -144,21 +152,72 @@ const AdminModel = () => {
               kecerdasan buatan.
             </p>
 
-            <div className="mb-6 max-w-md">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Target Program Studi Pelatihan
-              </label>
-              <select
-                value={prodi}
-                onChange={(e) => setProdi(e.target.value)}
-                className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-              >
-                <option value="">-- Pilih Program Studi Target --</option>
-                <option value="Informatika">Informatika</option>
-                <option value="Matematika">Matematika</option>
-                <option value="Teknik Mesin">Teknik Mesin</option>
-                <option value="Teknik Elektro">Teknik Elektro</option>
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Target Program Studi
+                </label>
+                <select
+                  value={prodi}
+                  onChange={(e) => setProdi(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                >
+                  <option value="">-- Semua Prodi --</option>
+                  <option value="Informatika">Informatika</option>
+                  <option value="Matematika">Matematika</option>
+                  <option value="Teknik Mesin">Teknik Mesin</option>
+                  <option value="Teknik Elektro">Teknik Elektro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Tahun Angkatan Latih
+                </label>
+                <select
+                  value={angkatan}
+                  onChange={(e) => setAngkatan(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                >
+                  <option value="">-- Semua Angkatan --</option>
+                  <option value="2020">2020</option>
+                  <option value="2021">2021</option>
+                  <option value="2022">2022</option>
+                  <option value="2023">2023</option>
+                  <option value="2024">2024</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Max Epochs
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={epochs}
+                  onChange={(e) => setEpochs(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Batch Size
+                </label>
+                <select
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                >
+                  <option value="8">8</option>
+                  <option value="16">16</option>
+                  <option value="32">32</option>
+                  <option value="64">64</option>
+                  <option value="128">128</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex flex-col md:flex-row items-center gap-4">
