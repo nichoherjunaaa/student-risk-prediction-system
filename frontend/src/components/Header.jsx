@@ -1,7 +1,50 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Calendar, Menu } from 'lucide-react';
 
 const Header = ({ title, subtitle, toggleSidebar }) => {
+  const [showNotifications, setShowNotifications] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Fungsi untuk mendapatkan Tahun Akademik dan Semester yang dinamis
+  const getAcademicSemester = () => {
+    const now = new Date();
+    const month = now.getMonth() + 1; // 1-12
+    const year = now.getFullYear();
+    
+    // Ganjil: Agustus (8) hingga Januari (1)
+    // Genap: Februari (2) hingga Juli (7)
+    let semester = "Ganjil";
+    let startYear = year;
+    let endYear = year + 1;
+    
+    if (month >= 8) {
+      semester = "Ganjil";
+      startYear = year;
+      endYear = year + 1;
+    } else if (month <= 1) {
+      semester = "Ganjil";
+      startYear = year - 1;
+      endYear = year;
+    } else {
+      semester = "Genap";
+      startYear = year - 1;
+      endYear = year;
+    }
+    
+    return `Semester ${semester} ${startYear}/${endYear}`;
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <>
       <div className="lg:hidden flex items-center justify-between bg-primary p-4 text-surface shrink-0 z-40 shadow-md">
@@ -21,13 +64,32 @@ const Header = ({ title, subtitle, toggleSidebar }) => {
         </div>
         
         <div className="flex items-center space-x-4">
-          <button className="p-2 text-gray-400 hover:text-primary transition-colors bg-gray-50 rounded-full hover:bg-gray-100">
-            <Bell className="h-5 w-5" />
-          </button>
+          <div className="relative" ref={dropdownRef}>
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2 text-gray-400 hover:text-primary transition-colors bg-gray-50 rounded-full hover:bg-gray-100"
+            >
+              <Bell className="h-5 w-5" />
+              {/* Optional: Tambahkan badge merah jika ada notifikasi belum dibaca */}
+              {/* <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full border border-white"></span> */}
+            </button>
+
+            {showNotifications && (
+              <div className="absolute right-0 mt-2 w-72 bg-white border border-border rounded-xl shadow-lg py-2 z-50">
+                <div className="px-4 py-2 border-b border-border">
+                  <h3 className="text-sm font-bold text-secondary">Notifikasi</h3>
+                </div>
+                <div className="max-h-64 overflow-y-auto px-4 py-6 text-center">
+                  <p className="text-sm text-gray-500">Belum ada notifikasi baru untuk Anda.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="h-8 w-px bg-border"></div>
           <div className="text-sm text-gray-600 font-medium bg-white border border-border px-4 py-2 rounded-lg shadow-sm flex items-center">
             <Calendar className="h-4 w-4 mr-2 text-primary" />
-            <span>Semester Ganjil 2026/2027</span>
+            <span>{getAcademicSemester()}</span>
           </div>
         </div>
       </header>
