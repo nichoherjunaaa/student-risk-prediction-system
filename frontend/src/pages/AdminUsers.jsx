@@ -10,6 +10,7 @@ const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
+  const currentPath = "/admin/users";
 
   useEffect(() => {
     const saved = localStorage.getItem('user');
@@ -57,7 +58,8 @@ const AdminUsers = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
               <div>
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Users className="text-primary" /> Master Pengguna
+                  Daftar Pengguna
+
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
                   Kelola master data akun sistem dengan berbagai tingkat hak akses.

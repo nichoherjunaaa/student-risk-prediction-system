@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Calendar, Menu, ChevronDown, User, Settings } from 'lucide-react';
+import { Bell, Calendar, Menu, ChevronDown, User, Settings, Users, Shield } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const Header = ({ title, subtitle, toggleSidebar }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const currentPath = location.pathname;
 
   // Fungsi untuk mendapatkan Tahun Akademik dan Semester yang dinamis
   const getAcademicSemester = () => {
@@ -59,19 +63,25 @@ const Header = ({ title, subtitle, toggleSidebar }) => {
 
       <div className="flex-none shadow-sm z-10 shrink-0">
         <header className="h-14 bg-surface border-b border-border hidden lg:flex items-center justify-between px-6">
-          <div className="hidden space-x-2">
-            <button className="flex items-center space-x-1 px-4 py-1.5 bg-primary text-white text-sm font-medium rounded hover:bg-primary-dark transition-colors">
-              <span>Beranda Sistem</span>
-              <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
-            </button>
-            <button className="flex items-center space-x-1 px-4 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded hover:bg-gray-200 transition-colors">
-              <span>Laporan</span>
-              <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
-            </button>
-            <button className="flex items-center space-x-1 px-4 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded hover:bg-gray-200 transition-colors">
-              <span>Pengaturan</span>
-              <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
-            </button>
+          <div className="flex space-x-2">
+            {(currentPath === '/admin/users' || currentPath.startsWith('/admin/users/') || currentPath === '/admin/roles') ? (
+              <>
+                <button 
+                  onClick={() => navigate('/admin/users')}
+                  className={`flex items-center px-4 py-1.5 text-sm font-medium rounded transition-colors ${(currentPath === '/admin/users' || currentPath.startsWith('/admin/users/')) ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Daftar Pengguna
+                </button>
+                <button 
+                  onClick={() => navigate('/admin/roles')}
+                  className={`flex items-center px-4 py-1.5 text-sm font-medium rounded transition-colors ${currentPath === '/admin/roles' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  Manajemen Role
+                </button>
+              </>
+            ) : null}
           </div>
           
           <div className="flex items-center space-x-3 ml-auto">

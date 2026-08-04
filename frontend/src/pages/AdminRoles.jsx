@@ -96,12 +96,7 @@ const AdminRoles = () => {
               </p>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={() => navigate('/admin/users')}
-                className="px-4 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition shadow-sm"
-              >
-                Kembali ke Master Pengguna
-              </button>
+
               <button
                 onClick={handleSave}
                 className="px-4 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition shadow-sm flex items-center gap-2"
