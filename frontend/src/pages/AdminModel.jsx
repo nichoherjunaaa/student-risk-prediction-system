@@ -137,7 +137,7 @@ const AdminModel = () => {
       <div className="flex-1 flex flex-col overflow-y-auto">
         <Header
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          title="Panel Utama Admin: Manajemen Model Sistem"
+          title="Panel Utama Admin: Master Model Sistem"
         />
 
         <main className="p-6 space-y-6 max-w-7xl w-full mx-auto">

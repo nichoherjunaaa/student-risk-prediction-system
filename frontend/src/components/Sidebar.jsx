@@ -71,6 +71,26 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         </div>
 
         <nav className="flex-1 overflow-y-auto no-scrollbar py-8 flex flex-col space-y-2">
+          {/* MENU KHUSUS ADMIN */}
+          {computedRole === "admin" && (
+            <>
+              <Link
+                to="/admin/model"
+                className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-4 ${currentPath === "/admin/model" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
+              >
+                <Settings2 className="h-5 w-5 mr-4 text-accent" />
+                <span>Master Model</span>
+              </Link>
+              <Link
+                to="/admin/users"
+                className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 mb-4 ${currentPath === "/admin/users" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
+              >
+                <Users className="h-5 w-5 mr-4 text-accent" />
+                <span>Master Pengguna</span>
+              </Link>
+            </>
+          )}
+
           {/* MENU UTAMA USER / DOSEN */}
           <Link
             to="/upload"
@@ -96,25 +116,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             <span>Log Riwayat</span>
           </Link>
 
-          {/* MENU KHUSUS ADMIN */}
-          {computedRole === "admin" && (
-            <>
-              <Link
-                to="/admin/model"
-                className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-4 ${currentPath === "/admin/model" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
-              >
-                <Settings2 className="h-5 w-5 mr-4 text-accent" />
-                <span>Kelola Model AI</span>
-              </Link>
-              <Link
-                to="/admin/users"
-                className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 ${currentPath === "/admin/users" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
-              >
-                <Users className="h-5 w-5 mr-4 text-accent" />
-                <span>Master Pengguna</span>
-              </Link>
-            </>
-          )}
         </nav>
 
         <div className="p-6 border-t border-white/10 shrink-0">
