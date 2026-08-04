@@ -56,7 +56,7 @@ const AdminUserForm = () => {
       <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
 
       <div className="flex-1 flex flex-col overflow-y-auto">
-        <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} title="Form Manajemen DPA" />
+        <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} title="Form Master Pengguna" />
 
         <main className="p-6 space-y-6 max-w-3xl w-full mx-auto">
           <button

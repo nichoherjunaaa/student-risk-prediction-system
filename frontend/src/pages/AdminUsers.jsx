@@ -47,17 +47,17 @@ const AdminUsers = () => {
       <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
 
       <div className="flex-1 flex flex-col overflow-y-auto">
-        <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} title="Panel Utama Admin: Manajemen Pengguna DPA" />
+        <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} title="Panel Utama Admin: Master Pengguna" />
 
         <main className="p-6 space-y-6 max-w-7xl w-full mx-auto">
           <div className="bg-surface p-6 rounded-2xl shadow-sm border border-border min-h-[400px]">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
               <div>
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Users className="text-primary" /> Manajemen Dosen Pembimbing (DPA)
+                  <Users className="text-primary" /> Master Pengguna (DPA)
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Kelola akun DPA yang memiliki akses untuk mengunggah dan melakukan prediksi nilai mahasiswa.
+                  Kelola master data akun DPA yang memiliki akses untuk mengunggah dan melakukan prediksi nilai mahasiswa.
                 </p>
               </div>
               <button
