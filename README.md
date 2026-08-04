@@ -7,7 +7,7 @@
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=for-the-badge&logo=vite)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?style=for-the-badge&logo=tailwindcss)
 
-**SISIP Program** adalah aplikasi berbasis Web dan Artificial Intelligence (Deep Learning) yang dirancang sebagai *Early Warning System* untuk memprediksi mahasiswa yang berpotensi membutuhkan program sisip (remedial/pengayaan akademis) berdasarkan riwayat data akademis tabular.
+**SISIP Program** adalah aplikasi berbasis Web dan Artificial Intelligence (Deep Learning) yang dirancang sebagai *Early Warning System* untuk memprediksi mahasiswa yang berpotensi membutuhkan program sisip.
 
 ---
 
