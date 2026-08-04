@@ -123,6 +123,40 @@ sisip-program/
 
 ---
 
+### 3. Panduan Penggunaan Aplikasi (Quick Start)
+
+Setelah Backend dan Frontend berhasil dijalankan, ikuti langkah-langkah berikut untuk menggunakan sistem:
+
+1. **Buka Aplikasi di Browser**:
+   Akses `http://localhost:5173` melalui *browser* Anda.
+
+2. **Login sebagai Super Admin**:
+   Gunakan kredensial bawaan (*default*) untuk masuk sebagai administrator:
+   - **Email**: `admin@gmail.com`
+   - **Password**: `admin123`
+
+3. **Melatih Model AI (Wajib Pertama Kali)**:
+   - Sebelum bisa melakukan prediksi, Admin wajib melatih model AI terlebih dahulu.
+   - Buka menu **Master Model** di panel samping sebelah kiri.
+   - Masukkan *Target Program Studi* dan *Tahun Angkatan Latih*.
+   - Sesuaikan parameter (*Max Epochs*, *Batch Size*, *Learning Rate*, dll) jika diperlukan.
+   - Unggah dataset riwayat mahasiswa (berformat Excel) dan klik **Train Model Baru**.
+   - Tunggu hingga proses selesai dan status sistem menampilkan bahwa model berhasil dibangun dan dikunci (*Active*).
+
+4. **Menambahkan Akun Pengguna / DPA**:
+   - Buka menu **Master Pengguna**.
+   - Tambahkan akun Dosen Pembimbing Akademik (DPA) baru beserta kata sandi mereka. 
+   - Anda juga dapat mengatur hak akses (Role) masing-masing jenis pengguna lewat tab **Manajemen Role** di bagian Header atas.
+
+5. **Melakukan Prediksi Mahasiswa**:
+   - *Logout* dari akun Admin, lalu *Login* menggunakan akun DPA/Dosen yang baru saja dibuat.
+   - Buka menu **Unggah Data**.
+   - Pilih Program Studi, Angkatan, dan Semester yang sesuai.
+   - Unggah data Excel mahasiswa semester berjalan (pastikan *header* tabel sesuai dengan format yang dilatih) lalu klik **Jalankan Prediksi Sistem**.
+   - Anda dapat meninjau hasil secara rinci pada menu **Hasil Prediksi** atau melihat ringkasan historis pada menu **Log Riwayat** (hanya tersedia untuk Admin).
+
+---
+
 ## Kebijakan Keamanan & Kerahasiaan Data
 
 Demi menjaga keamanan dan kerahasiaan data pribadi mahasiswa (*Data Privacy & Protection*):
