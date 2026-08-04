@@ -17,10 +17,12 @@ import AdminUserForm from "./pages/AdminUserForm";
 import DetailCourses from "./pages/DetailCourses";
 import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
+import SessionTimeout from "./components/SessionTimeout";
 
 function App() {
   return (
     <Router>
+      <SessionTimeout />
       <Routes>
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<Login />} />

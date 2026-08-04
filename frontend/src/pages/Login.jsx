@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck, User, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -9,6 +9,22 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        if (user.role === 'admin') {
+          navigate('/admin/model');
+        } else {
+          navigate('/upload');
+        }
+      } catch (e) {
+        localStorage.removeItem('user');
+      }
+    }
+  }, [navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
