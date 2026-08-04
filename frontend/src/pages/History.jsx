@@ -116,7 +116,7 @@ const History = () => {
                     <th scope="col" className="px-6 py-4 font-semibold">ID Batch</th>
                     <th scope="col" className="px-6 py-4 font-semibold">Tanggal Unggah</th>
                     <th scope="col" className="px-6 py-4 font-semibold">Total Data</th>
-                    <th scope="col" className="px-6 py-4 font-semibold">Status Sistem</th>
+                    <th scope="col" className="px-6 py-4 font-semibold">Oleh</th>
                     <th scope="col" className="px-6 py-4 font-semibold text-right">Aksi</th>
                   </tr>
                 </thead>
@@ -131,15 +131,9 @@ const History = () => {
                       <td className="px-6 py-4">{batch.date_uploaded}</td>
                       <td className="px-6 py-4">{batch.total_records} Mahasiswa</td>
                       <td className="px-6 py-4">
-                        {batch.status === 'Processed' ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-                            <CheckCircle className="h-3 w-3 mr-1" /> Diproses
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-red-100 text-red-800 border border-red-200">
-                            <XCircle className="h-3 w-3 mr-1" /> Gagal
-                          </span>
-                        )}
+                        <span className="inline-flex items-center text-sm font-medium text-gray-700">
+                          {batch.uploaded_by || 'Sistem'}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Link to={`/batch/${batch.id}`} className="inline-flex items-center px-3 py-1.5 text-xs font-bold text-primary bg-white border border-border rounded-md hover:bg-gray-50 hover:text-primary-dark transition-colors shadow-sm">

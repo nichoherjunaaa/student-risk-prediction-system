@@ -96,6 +96,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                 <Users className="h-5 w-5 mr-4 text-accent" />
                 <span>Master Pengguna</span>
               </Link>
+              <Link
+                to="/history"
+                className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mb-4 ${currentPath === "/history" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
+              >
+                <History className="h-5 w-5 mr-4 text-accent" />
+                <span>Log Riwayat</span>
+              </Link>
             </>
           )}
 
@@ -116,13 +123,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             <span>Hasil Prediksi</span>
           </Link>
 
-          <Link
-            to="/history"
-            className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 mb-4 ${currentPath === "/history" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
-          >
-            <History className="h-5 w-5 mr-4 text-accent" />
-            <span>Log Riwayat</span>
-          </Link>
 
         </nav>
 

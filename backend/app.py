@@ -49,7 +49,8 @@ def init_db():
             safe INTEGER,
             status TEXT,
             prodi TEXT,
-            angkatan TEXT
+            angkatan TEXT,
+            uploaded_by TEXT
         )
     ''')
     c.execute('''
@@ -620,6 +621,7 @@ def predict():
     prodi = request.form.get('prodi', 'Unknown')
     angkatan = request.form.get('angkatan', 'Unknown')
     semester = request.form.get('semester', 'Unknown')
+    uploaded_by = request.form.get('uploaded_by', 'Sistem')
 
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
@@ -796,9 +798,9 @@ def predict():
         c.execute('DELETE FROM batches WHERE id = ?', (old_batch_id,))
 
     c.execute('''
-        INSERT INTO batches (batch_name, date_uploaded, total_records, at_risk, safe, status, prodi, angkatan)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan))
+        INSERT INTO batches (batch_name, date_uploaded, total_records, at_risk, safe, status, prodi, angkatan, uploaded_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan, uploaded_by))
     batch_id = c.lastrowid
     
     pred_data = [(batch_id, r['nim'], r['pmb'], r['prediction'], r['isRisk'], r['details']) for r in results]

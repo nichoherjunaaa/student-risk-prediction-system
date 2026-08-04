@@ -86,6 +86,13 @@ const Upload = () => {
     formData.append("prodi", prodi);
     formData.append("angkatan", angkatan);
     formData.append("semester", semester);
+    
+    const savedUser = localStorage.getItem('user');
+    let userName = 'Sistem';
+    if (savedUser) {
+      userName = JSON.parse(savedUser).name || 'Sistem';
+    }
+    formData.append("uploaded_by", userName);
 
     try {
       const response = await axios.post(
