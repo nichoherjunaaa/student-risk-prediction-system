@@ -661,6 +661,7 @@ def get_all_models():
             models.append({
                 "id": row["id"],
                 "version_name": row["version_name"],
+                "prodi": row["prodi"],
                 "file_path": row["file_path"],
                 "accuracy": row["accuracy"],
                 "loss": row["loss"],

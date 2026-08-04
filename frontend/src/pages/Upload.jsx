@@ -63,6 +63,10 @@ const Upload = () => {
       setError("Silakan pilih berkas Excel data mahasiswa terlebih dahulu.");
       return;
     }
+    if (!prodi) {
+      setError("Silakan pilih Program Studi terlebih dahulu sebelum menjalankan prediksi.");
+      return;
+    }
     setLoading(true);
     setIsPredicting(true);
     setPredictProgress(5);
