@@ -14,6 +14,7 @@ import DetailBatch from "./pages/DetailBatch";
 import AdminModel from "./pages/AdminModel";
 import AdminUsers from "./pages/AdminUsers";
 import AdminUserForm from "./pages/AdminUserForm";
+import AdminRoles from "./pages/AdminRoles";
 import DetailCourses from "./pages/DetailCourses";
 import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
@@ -36,6 +37,7 @@ function App() {
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/users/new" element={<AdminUserForm />} />
         <Route path="/admin/users/edit/:id" element={<AdminUserForm />} />
+        <Route path="/admin/roles" element={<AdminRoles />} />
         
         {/* Error Pages */}
         <Route path="/500" element={<ServerError />} />
