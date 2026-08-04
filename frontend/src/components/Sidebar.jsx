@@ -131,17 +131,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </div>
           <Link
             to="/login"
-            className="flex items-center px-4 py-2.5 w-full text-sm font-semibold text-red-300 hover:bg-red-500/10 hover:text-red-200 rounded-lg transition duration-200"
+            className="flex items-center justify-center px-4 py-3 w-full text-sm font-bold text-red-100 bg-red-500/20 border border-red-500/30 hover:bg-red-500/40 hover:text-white rounded-lg transition-all duration-200 shadow-sm"
           >
-            <LogOut className="h-4 w-4 mr-3" />
-            Logout
+            <LogOut className="h-4 w-4 mr-2" />
+            Keluar Sistem
           </Link>
-        </div>
-
-        {/* App Version mimicking the image */}
-        <div className="p-4 border-t border-dashed border-white/20 shrink-0 text-center">
-          <p className="text-xs font-semibold text-white/80">App Version</p>
-          <p className="text-[11px] text-white/50 mt-0.5">v1.25.109-alpha</p>
         </div>
       </aside>
     </>
