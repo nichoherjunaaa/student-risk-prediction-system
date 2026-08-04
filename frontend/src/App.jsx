@@ -15,6 +15,8 @@ import AdminModel from "./pages/AdminModel";
 import AdminUsers from "./pages/AdminUsers";
 import AdminUserForm from "./pages/AdminUserForm";
 import DetailCourses from "./pages/DetailCourses";
+import NotFound from "./pages/NotFound";
+import ServerError from "./pages/ServerError";
 
 function App() {
   return (
@@ -32,6 +34,10 @@ function App() {
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/users/new" element={<AdminUserForm />} />
         <Route path="/admin/users/edit/:id" element={<AdminUserForm />} />
+        
+        {/* Error Pages */}
+        <Route path="/500" element={<ServerError />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );
