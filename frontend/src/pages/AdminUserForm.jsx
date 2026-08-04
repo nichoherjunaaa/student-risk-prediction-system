@@ -12,7 +12,7 @@ const AdminUserForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({ name: "", email: "", password: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "dpa" });
 
   useEffect(() => {
     if (id) {
@@ -26,6 +26,7 @@ const AdminUserForm = () => {
       setFormData({
         name: response.data.name,
         email: response.data.email,
+        role: response.data.role || "dpa",
         password: "",
       });
     } catch (err) {
@@ -68,7 +69,7 @@ const AdminUserForm = () => {
           
           <div className="bg-surface p-8 rounded-2xl shadow-sm border border-border">
             <h2 className="text-xl font-bold flex items-center gap-2 mb-6">
-              {id ? "Edit Data DPA" : "Tambah Akun DPA Baru"}
+              {id ? "Edit Data Pengguna" : "Tambah Akun Pengguna Baru"}
             </h2>
             
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -101,6 +102,19 @@ const AdminUserForm = () => {
                   className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition"
                   placeholder="dpa@contoh.com"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Role Pengguna</label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition"
+                >
+                  <option value="dpa">Dosen Pembimbing (DPA)</option>
+                  <option value="kaprodi">Kepala Program Studi (Kaprodi)</option>
+                  <option value="dekan">Dekan</option>
+                </select>
               </div>
               
               <div>

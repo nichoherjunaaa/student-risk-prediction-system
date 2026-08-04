@@ -8,9 +8,12 @@ import { useNavigate } from "react-router-dom";
 const AdminUsers = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [users, setUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
+    const saved = localStorage.getItem('user');
+    if (saved) setCurrentUser(JSON.parse(saved));
     fetchUsers();
   }, []);
 
@@ -54,24 +57,26 @@ const AdminUsers = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
               <div>
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Users className="text-primary" /> Master Pengguna (DPA)
+                  <Users className="text-primary" /> Master Pengguna
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Kelola master data akun DPA yang memiliki akses untuk mengunggah dan melakukan prediksi nilai mahasiswa.
+                  Kelola master data akun sistem dengan berbagai tingkat hak akses.
                 </p>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => navigate("/admin/roles")}
-                  className="px-4 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition shadow-sm flex items-center gap-2 border border-gray-200"
-                >
-                  <Shield size={18} /> Manajemen Role
-                </button>
+                {currentUser?.role === 'admin' && (
+                  <button
+                    onClick={() => navigate("/admin/roles")}
+                    className="px-4 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition shadow-sm flex items-center gap-2 border border-gray-200"
+                  >
+                    <Shield size={18} /> Manajemen Role
+                  </button>
+                )}
                 <button
                   onClick={() => handleOpenModal()}
                   className="px-4 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition shadow-sm flex items-center gap-2"
                 >
-                  <Plus size={18} /> Tambah DPA Baru
+                  <Plus size={18} /> Tambah Pengguna
                 </button>
               </div>
             </div>
@@ -90,17 +95,17 @@ const AdminUsers = () => {
                   {users.length === 0 ? (
                     <tr>
                       <td colSpan="4" className="p-4 text-center text-gray-400">
-                        Belum ada akun DPA yang terdaftar.
+                        Belum ada akun pengguna yang terdaftar.
                       </td>
                     </tr>
                   ) : (
                     users.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50/50">
-                        <td className="p-3 font-semibold text-secondary">{user.name}</td>
+                      <tr key={user.id} className="hover:bg-gray-50 transition">
+                        <td className="p-3 font-medium text-gray-900">{user.name}</td>
                         <td className="p-3 text-gray-600">{user.email}</td>
-                        <td className="p-3">
-                          <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded uppercase">
-                            {user.role}
+                        <td className="p-3 text-gray-600 capitalize">
+                          <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-semibold">
+                            {user.role || 'dpa'}
                           </span>
                         </td>
                         <td className="p-3 text-center space-x-2">

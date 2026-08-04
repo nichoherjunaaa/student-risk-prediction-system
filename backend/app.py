@@ -184,7 +184,7 @@ def get_users():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT id, email, name, role FROM users WHERE role = 'dpa' ORDER BY id DESC")
+    c.execute('SELECT id, email, name, role FROM users WHERE role != "admin" ORDER BY id DESC')
     users = [dict(row) for row in c.fetchall()]
     conn.close()
     return jsonify(users), 200
@@ -205,7 +205,7 @@ def create_user():
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', (email, hashed_pw, name, 'dpa'))
+        c.execute('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', (email, hashed_pw, name, data.get('role', 'dpa')))
         conn.commit()
         conn.close()
         return jsonify({'message': 'Berhasil menambahkan DPA baru'}), 201
@@ -219,7 +219,7 @@ def get_user(user_id):
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT id, email, name, role FROM users WHERE id = ? AND role = 'dpa'", (user_id,))
+    c.execute("SELECT id, email, name, role FROM users WHERE id = ? AND role != 'admin'", (user_id,))
     user = c.fetchone()
     conn.close()
     if user:
@@ -233,15 +233,16 @@ def update_user(user_id):
     name = data.get('name')
     password = data.get('password')
     
+    role = data.get('role', 'dpa')
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         if password:
             import hashlib
             hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-            c.execute('UPDATE users SET email = ?, name = ?, password = ? WHERE id = ? AND role = "dpa"', (email, name, hashed_pw, user_id))
+            c.execute('UPDATE users SET email = ?, name = ?, password = ?, role = ? WHERE id = ? AND role != "admin"', (email, name, hashed_pw, role, user_id))
         else:
-            c.execute('UPDATE users SET email = ?, name = ? WHERE id = ? AND role = "dpa"', (email, name, user_id))
+            c.execute('UPDATE users SET email = ?, name = ?, role = ? WHERE id = ? AND role != "admin"', (email, name, role, user_id))
             
         conn.commit()
         conn.close()
@@ -256,7 +257,7 @@ def delete_user(user_id):
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute('DELETE FROM users WHERE id = ? AND role = "dpa"', (user_id,))
+        c.execute('DELETE FROM users WHERE id = ? AND role != "admin"', (user_id,))
         conn.commit()
         conn.close()
         return jsonify({'message': 'Berhasil menghapus DPA'}), 200
