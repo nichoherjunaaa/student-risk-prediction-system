@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Calendar, Menu } from 'lucide-react';
+import { Bell, Calendar, Menu, ChevronDown, User, Settings } from 'lucide-react';
 
 const Header = ({ title, subtitle, toggleSidebar }) => {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -57,13 +57,35 @@ const Header = ({ title, subtitle, toggleSidebar }) => {
         </button>
       </div>
 
-      <header className="h-20 bg-surface border-b border-border hidden lg:flex items-center justify-between px-8 shrink-0 z-10 shadow-sm">
-        <div>
-          <h1 className="text-2xl font-bold text-secondary">{title}</h1>
-          <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
-        </div>
-        
-        <div className="flex items-center space-x-4">
+      <div className="flex-none shadow-sm z-10 shrink-0">
+        <header className="h-14 bg-surface border-b border-border hidden lg:flex items-center justify-between px-6">
+          <div className="flex space-x-2">
+            <button className="flex items-center space-x-1 px-4 py-1.5 bg-primary text-white text-sm font-medium rounded hover:bg-primary-dark transition-colors">
+              <span>Beranda Sistem</span>
+              <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
+            </button>
+            <button className="flex items-center space-x-1 px-4 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded hover:bg-gray-200 transition-colors">
+              <span>Laporan</span>
+              <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
+            </button>
+            <button className="flex items-center space-x-1 px-4 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded hover:bg-gray-200 transition-colors">
+              <span>Pengaturan</span>
+              <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
+            </button>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            <div className="text-sm text-gray-600 font-medium mr-4 flex items-center bg-gray-50 border border-border px-3 py-1.5 rounded-md">
+              <Calendar className="h-4 w-4 mr-2 text-primary" />
+              <span>{getAcademicSemester()}</span>
+            </div>
+
+            <button className="p-1.5 text-gray-400 hover:text-primary transition-colors bg-gray-100 rounded-full hover:bg-gray-200">
+              <User className="h-5 w-5" />
+            </button>
+            <button className="p-1.5 text-gray-400 hover:text-primary transition-colors bg-gray-100 rounded-full hover:bg-gray-200">
+              <Settings className="h-5 w-5" />
+            </button>
           <div className="relative" ref={dropdownRef}>
             <button 
               onClick={() => setShowNotifications(!showNotifications)}
@@ -85,14 +107,14 @@ const Header = ({ title, subtitle, toggleSidebar }) => {
               </div>
             )}
           </div>
+        </header>
 
-          <div className="h-8 w-px bg-border"></div>
-          <div className="text-sm text-gray-600 font-medium bg-white border border-border px-4 py-2 rounded-lg shadow-sm flex items-center">
-            <Calendar className="h-4 w-4 mr-2 text-primary" />
-            <span>{getAcademicSemester()}</span>
-          </div>
+        {/* Area Judul Halaman */}
+        <div className="px-8 py-5 bg-white border-b border-border shadow-sm hidden lg:block">
+          <h1 className="text-xl font-bold text-secondary uppercase tracking-wider">{title}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
         </div>
-      </header>
+      </div>
     </>
   );
 };
