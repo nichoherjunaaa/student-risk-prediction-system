@@ -66,14 +66,6 @@ const AdminUsers = () => {
                 </p>
               </div>
               <div className="flex gap-2">
-                {currentUser?.role === 'admin' && (
-                  <button
-                    onClick={() => navigate("/admin/roles")}
-                    className="px-4 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition shadow-sm flex items-center gap-2 border border-gray-200"
-                  >
-                    <Shield size={18} /> Manajemen Role
-                  </button>
-                )}
                 <button
                   onClick={() => handleOpenModal()}
                   className="px-4 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition shadow-sm flex items-center gap-2"
@@ -105,9 +97,9 @@ const AdminUsers = () => {
                       <tr key={user.id} className="hover:bg-gray-50 transition">
                         <td className="p-3 font-medium text-gray-900">{user.name}</td>
                         <td className="p-3 text-gray-600">{user.email}</td>
-                        <td className="p-3 text-gray-600 capitalize">
-                          <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-semibold">
-                            {user.role || 'dpa'}
+                        <td className="p-3 text-gray-600">
+                          <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-semibold uppercase">
+                            {user.role || 'DPA'}
                           </span>
                         </td>
                         <td className="p-3 text-center space-x-2">
