@@ -13,6 +13,7 @@ import DetailStudent from "./pages/DetailStudent";
 import DetailBatch from "./pages/DetailBatch";
 import AdminModel from "./pages/AdminModel";
 import AdminUsers from "./pages/AdminUsers";
+import AdminUserForm from "./pages/AdminUserForm";
 import DetailCourses from "./pages/DetailCourses";
 
 function App() {
@@ -29,6 +30,8 @@ function App() {
         <Route path="/batch/:id" element={<DetailBatch />} />
         <Route path="/admin/model" element={<AdminModel />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/users/new" element={<AdminUserForm />} />
+        <Route path="/admin/users/edit/:id" element={<AdminUserForm />} />
       </Routes>
     </Router>
   );
