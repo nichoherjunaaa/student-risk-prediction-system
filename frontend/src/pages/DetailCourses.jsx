@@ -76,7 +76,7 @@ const DetailCourses = () => {
         />
 
         <div className="flex-1 overflow-y-auto p-8 relative z-10">
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             <div className="mb-6">
               <Link to={`/detail/${nim}${batchId ? `?batch=${batchId}` : ''}`} className="inline-flex items-center text-gray-500 hover:text-primary transition-colors font-medium">
                 <ArrowLeft className="h-5 w-5 mr-2" /> Kembali ke Profil Mahasiswa

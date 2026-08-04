@@ -137,13 +137,13 @@ const DetailStudent = () => {
         />
         
         <div className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-5xl mx-auto mb-6">
+          <div className="max-w-7xl mx-auto mb-6">
             <Link to="/results" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-primary transition-colors bg-white px-4 py-2 rounded-lg border border-border shadow-sm">
               <ArrowLeft className="h-4 w-4 mr-2" /> Kembali ke Hasil Prediksi
             </Link>
           </div>
 
-          <div className="max-w-5xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
             {/* Profile Header */}
             <div className={`px-8 py-10 text-surface flex flex-col md:flex-row items-center md:items-start justify-between relative overflow-hidden ${is_risk ? 'bg-primary' : 'bg-green-700'}`}>
               <div className="absolute -right-20 -top-20 h-64 w-64 bg-white opacity-5 rounded-full blur-2xl"></div>
