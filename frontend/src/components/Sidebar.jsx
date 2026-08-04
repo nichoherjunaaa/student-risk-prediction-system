@@ -9,11 +9,19 @@ import {
   Users,
   ChevronDown,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const location = useLocation();
   const currentPath = location.pathname;
+  const navigate = useNavigate();
+
+  const handleLogout = (e) => {
+    e.preventDefault();
+    localStorage.removeItem("user");
+    localStorage.removeItem("loginTime");
+    navigate("/login");
+  };
 
   // 1. DATA PENGGUNA dari localStorage
   let user = { email: "@admin.com", name: "Staf Admin", role: "admin" };
@@ -130,13 +138,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               <p className="text-xs text-white/60">{userEmail}</p>
             </div>
           </div>
-          <Link
-            to="/login"
+          <button
+            onClick={handleLogout}
             className="flex items-center justify-center px-4 py-3 w-full text-sm font-bold text-red-100 bg-red-500/20 border border-red-500/30 hover:bg-red-500/40 hover:text-white rounded-lg transition-all duration-200 shadow-sm"
           >
             <LogOut className="h-4 w-4 mr-2" />
             Keluar Sistem
-          </Link>
+          </button>
         </div>
       </aside>
     </>
