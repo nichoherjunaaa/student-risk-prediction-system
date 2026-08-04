@@ -94,25 +94,25 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           {/* MENU UTAMA USER / DOSEN */}
           <Link
             to="/upload"
-            className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 ${currentPath === "/upload" ? "bg-surface text-primary font-bold shadow-md" : "text-white/70 hover:bg-white/10 hover:text-white"}`}
+            className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 ${currentPath === "/upload" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
           >
-            <UploadCloud className="h-5 w-5 mr-4" />
+            <UploadCloud className="h-5 w-5 mr-4 text-accent" />
             <span>Unggah Data</span>
           </Link>
 
           <Link
             to="/results"
-            className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 ${currentPath === "/results" ? "bg-surface text-primary font-bold shadow-md" : "text-white/70 hover:bg-white/10 hover:text-white"}`}
+            className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 ${currentPath === "/results" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
           >
-            <BarChart2 className="h-5 w-5 mr-4" />
+            <BarChart2 className="h-5 w-5 mr-4 text-accent" />
             <span>Hasil Prediksi</span>
           </Link>
 
           <Link
             to="/history"
-            className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 ${currentPath === "/history" ? "bg-surface text-primary font-bold shadow-md" : "text-white/70 hover:bg-white/10 hover:text-white"}`}
+            className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 mb-4 ${currentPath === "/history" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
           >
-            <History className="h-5 w-5 mr-4" />
+            <History className="h-5 w-5 mr-4 text-accent" />
             <span>Log Riwayat</span>
           </Link>
 

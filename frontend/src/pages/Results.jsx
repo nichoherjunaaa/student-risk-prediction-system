@@ -112,6 +112,11 @@ const Results = () => {
                   display: true,
                   text: `Distribusi hasil prediksi prodi ${selectedProdi} tiap angkatan`,
                   font: { size: 16 }
+                },
+                tooltip: {
+                  titleFont: { size: 18 },
+                  bodyFont: { size: 16, weight: 'bold' },
+                  padding: 12
                 }
               },
               onClick: (e, elements) => {
@@ -250,7 +255,7 @@ const Results = () => {
                 ))}
               </div>
             </div>
-            <div className="relative h-80 w-full z-10 overflow-x-auto no-scrollbar">
+            <div className="relative h-[450px] w-full z-10 overflow-x-auto no-scrollbar">
               <div style={{ minWidth: '700px', height: '100%' }}>
                 <canvas ref={chartRef}></canvas>
               </div>
