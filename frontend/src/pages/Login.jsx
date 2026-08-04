@@ -1,13 +1,39 @@
-import React from 'react';
-import { ShieldCheck, User, Lock } from 'lucide-react';
+import React, { useState } from 'react';
+import { ShieldCheck, User, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const Login = () => {
   const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    navigate('/upload');
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/login', {
+        email,
+        password
+      });
+
+      const user = response.data.user;
+      localStorage.setItem('user', JSON.stringify(user));
+
+      if (user.role === 'admin') {
+        navigate('/admin/model');
+      } else {
+        navigate('/upload');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Gagal terhubung ke server');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -36,6 +62,13 @@ const Login = () => {
             <h2 className="text-3xl font-bold text-secondary mb-2">Selamat Datang Kembali</h2>
             <p className="text-gray-500 mb-8">Silakan masuk untuk mengakses dasbor.</p>
 
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-600 text-sm">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                {error}
+              </div>
+            )}
+
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
                 <label htmlFor="email" className="block text-sm font-semibold text-secondary mb-2">Email atau Nama Pengguna</label>
@@ -44,8 +77,10 @@ const Login = () => {
                     <User className="h-5 w-5" />
                   </div>
                   <input type="text" id="email" name="email" required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"
-                    placeholder="Masukkan email Anda" />
+                    placeholder="Masukkan email (contoh: admin@... atau dpa@...)" />
                 </div>
               </div>
 
@@ -59,6 +94,8 @@ const Login = () => {
                     <Lock className="h-5 w-5" />
                   </div>
                   <input type="password" id="password" name="password" required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"
                     placeholder="Masukkan kata sandi Anda" />
                 </div>
@@ -72,9 +109,9 @@ const Login = () => {
                 </label>
               </div>
 
-              <button type="submit"
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-semibold text-secondary bg-accent hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent transition-colors">
-                Masuk
+              <button type="submit" disabled={loading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-semibold text-secondary bg-accent hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent transition-colors disabled:opacity-50">
+                {loading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Masuk'}
               </button>
             </form>
             

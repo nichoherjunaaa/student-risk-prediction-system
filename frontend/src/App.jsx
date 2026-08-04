@@ -12,6 +12,7 @@ import History from "./pages/History";
 import DetailStudent from "./pages/DetailStudent";
 import DetailBatch from "./pages/DetailBatch";
 import AdminModel from "./pages/AdminModel";
+import AdminUsers from "./pages/AdminUsers";
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
         <Route path="/detail/:nim" element={<DetailStudent />} />
         <Route path="/batch/:id" element={<DetailBatch />} />
         <Route path="/admin/model" element={<AdminModel />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
       </Routes>
     </Router>
   );

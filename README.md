@@ -131,6 +131,13 @@ Demi menjaga keamanan dan kerahasiaan data pribadi mahasiswa (*Data Privacy & Pr
 
 ---
 
+## Panduan Kontribusi & Penambahan Fitur
+
+Untuk pengembang yang ingin menambah fitur baru, melakukan perbaikan bug, atau melakukan refactor kode:
+- Silakan pelajari panduan penamaan branch, alur kerja Git, dan format commit pada berkas **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+---
+
 ## Lisensi
 
 Proyek ini dikembangkan untuk kebutuhan internal akademik dan evaluasi hasil belajar mahasiswa. 100% menggunakan teknologi berbasis *Open Source*.

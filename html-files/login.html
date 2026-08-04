@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistem Prediksi Kelulusan Sisip Program</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#800000',
+                        primaryDark: '#600000',
+                        secondary: '#1f2020',
+                        accent: '#ffcc00',
+                        accentHover: '#e6b800',
+                        background: '#f4f4f5',
+                        surface: '#ffffff',
+                        border: '#e4e4e7'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-background font-sans text-secondary antialiased min-h-screen flex items-center justify-center p-4">
+
+    <!-- Split Screen Layout Container -->
+    <div class="w-full max-w-5xl bg-surface rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+        
+        <!-- Left Side: Branding / Welcome -->
+        <div class="md:w-1/2 bg-primary p-12 flex flex-col items-center justify-center text-surface relative overflow-hidden">
+            <!-- Decorative Elements -->
+            <div class="absolute top-0 left-0 w-full h-2 bg-accent"></div>
+            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-primaryDark rounded-full opacity-50"></div>
+            <div class="absolute -top-12 -right-12 w-48 h-48 bg-primaryDark rounded-full opacity-50"></div>
+            
+            <div class="relative z-10 flex flex-col items-center text-center">
+                <img src="logo.png" alt="University Logo" class="h-24 w-24 object-contain mb-8 bg-surface p-2 rounded-full shadow-lg">
+                <h1 class="text-3xl font-bold mb-4 tracking-tight">Sisip Program</h1>
+                <p class="text-lg text-white/80 font-medium max-w-sm">Sistem Prediksi Kelulusan & Evaluasi Akademik Mahasiswa</p>
+                
+                <div class="mt-12 flex items-center space-x-2 text-sm text-accent font-medium bg-primaryDark/40 px-4 py-2 rounded-full">
+                    <i data-lucide="shield-check" class="h-4 w-4"></i>
+                    <span>Sistem Informasi Terpadu</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: Login Form -->
+        <div class="md:w-1/2 p-10 md:p-14 flex flex-col justify-center bg-surface">
+            <div class="w-full max-w-md mx-auto">
+                <h2 class="text-3xl font-bold text-secondary mb-2">Welcome Back</h2>
+                <p class="text-gray-500 mb-8">Please sign in to access the dashboard.</p>
+
+                <form action="upload.html" method="GET" class="space-y-6">
+                    <!-- Username / Email -->
+                    <div>
+                        <label for="email" class="block text-sm font-semibold text-secondary mb-2">Email or Username</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                <i data-lucide="user" class="h-5 w-5"></i>
+                            </div>
+                            <input type="text" id="email" name="email" required
+                                class="block w-full pl-10 pr-3 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"
+                                placeholder="Enter your email">
+                        </div>
+                    </div>
+
+                    <!-- Password -->
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <label for="password" class="block text-sm font-semibold text-secondary">Password</label>
+                            <a href="#" class="text-sm font-medium text-primary hover:text-primaryDark transition-colors">Forgot password?</a>
+                        </div>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                <i data-lucide="lock" class="h-5 w-5"></i>
+                            </div>
+                            <input type="password" id="password" name="password" required
+                                class="block w-full pl-10 pr-3 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"
+                                placeholder="Enter your password">
+                        </div>
+                    </div>
+
+                    <!-- Remember Me -->
+                    <div class="flex items-center">
+                        <input id="remember-me" name="remember-me" type="checkbox"
+                            class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded cursor-pointer accent-primary">
+                        <label for="remember-me" class="ml-2 block text-sm text-gray-600 cursor-pointer">
+                            Remember me for 30 days
+                        </label>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-semibold text-secondary bg-accent hover:bg-accentHover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent transition-colors">
+                        Sign In
+                    </button>
+                </form>
+                
+                <div class="mt-8 pt-6 border-t border-border text-center">
+                    <p class="text-sm text-gray-500">
+                        Need access? <a href="#" class="font-medium text-primary hover:text-primaryDark transition-colors">Contact Administrator</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Initialize Lucide Icons -->
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

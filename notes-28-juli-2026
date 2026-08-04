@@ -1,0 +1,42 @@
+TODO SEKARANG
+
+DPA -> pilih prodi pilih angkatan pilih semester
+upload -> download template excel spreadsheets untuk prediksi
+pratinjau -> nama, nim, IPK
+tingkat kelulusan ganti tingkat persentase sisip
+daftar mahasiswa beresiko tidak perlu ganti di page ketika klik chart
+view ketika di hover jumlahnya diperbesar
+ketika download mahasiswa beresiko nim, nama, ipk sisip tidak sisip
+detail mahasiswa sisip cetak detail nilai dll ipk identitas, halaman detail nilai per semester ketika IPK di klik
+
+
+end user
+- tidak perlu training -> langsung prediksi
+- angkatan -> 2 tahun belakang dari sekarang
+- pada bar chart ketika di klik ada daftar mahasiswa yang bisa di klik detail
+- pilh angkatan dan semester
+- pilih dpa nanti akses mahasiswanya sendiri sendiri
+- kalau dari SIA tidak pakai pilih program studi
+
+opsional
+- sebagai kaprodi/pejabat lainnya sesuai dengan hak masing-masing
+
+sisi admin -> 
+- kebebasan eksperimen dll
+- parameter yang dipilih apa
+- tahun yang akan diakses 
+- training dari sisi admin
+
+download pdf : 
+nama, nim, prodi 
+
+bar chart di klik muncul detail -> detail yang dibawah chart di hapus saja  
+
+persentase berpotensi sisip program bukan yang lulus
+
+history riwayat mungkin tidak perlu tapi id batch dan status system tidak perlu tambah persentase sisip
+
+
+memasukkan NIM ->
+
+

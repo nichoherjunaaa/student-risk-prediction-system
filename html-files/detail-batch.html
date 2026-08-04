@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch Details - Prediction System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#800000',
+                        primaryDark: '#600000',
+                        primaryLight: '#a03333',
+                        secondary: '#1f2020',
+                        accent: '#ffcc00',
+                        accentHover: '#e6b800',
+                        background: '#f4f4f5',
+                        surface: '#ffffff',
+                        border: '#e4e4e7'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none; 
+            scrollbar-width: none; 
+        }
+    </style>
+</head>
+<body class="bg-background font-sans text-secondary antialiased h-screen flex flex-col lg:flex-row overflow-hidden">
+
+    <!-- Mobile Topbar -->
+    <div class="lg:hidden flex items-center justify-between bg-primary p-4 text-surface shrink-0 z-40 shadow-md">
+        <div class="flex items-center">
+            <img src="logo.png" alt="System Logo" class="h-8 w-8 object-contain bg-surface p-1 rounded-md mr-3">
+            <span class="font-bold text-lg">Sisip Program</span>
+        </div>
+        <button id="mobileMenuBtn" class="p-2 bg-white/10 rounded-md focus:outline-none hover:bg-white/20 transition-colors">
+            <i data-lucide="menu" class="h-6 w-6"></i>
+        </button>
+    </div>
+
+    <!-- Mobile Overlay -->
+    <div id="mobileOverlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden backdrop-blur-sm transition-opacity opacity-0"></div>
+
+    <!-- PREMIUM SIDEBAR -->
+    <aside id="sidebar" class="w-72 bg-primary text-surface flex flex-col h-full shrink-0 border-r border-primaryDark/50 z-50 fixed lg:static inset-y-0 left-0 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 shadow-2xl lg:shadow-xl">
+        
+        <!-- Branding Header -->
+        <div class="pt-8 pb-6 px-6 flex flex-col items-center justify-center border-b border-white/10 shrink-0 relative">
+            <button id="closeSidebarBtn" class="lg:hidden absolute top-4 right-4 p-2 text-white/70 hover:text-white bg-white/10 rounded-md">
+                <i data-lucide="x" class="h-5 w-5"></i>
+            </button>
+            <img src="logo.png" alt="System Logo" class="h-14 w-14 object-contain bg-surface p-2 rounded-xl shadow-md mb-4">
+            <h2 class="font-bold text-xl leading-tight tracking-wide text-white text-center">Sisip Program</h2>
+            <span class="text-xs text-white/70 font-semibold uppercase tracking-wider mt-1 text-center">Prediksi Sistem</span>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="flex-1 overflow-y-auto no-scrollbar py-8 flex flex-col space-y-2">
+            <a href="upload.html" class="flex items-center px-4 py-3 mx-4 text-white/70 hover:bg-white/10 hover:text-white rounded-lg font-medium transition duration-200">
+                <i data-lucide="upload-cloud" class="h-5 w-5 mr-4"></i>
+                <span>Upload Data</span>
+            </a>
+            
+            <a href="results.html" class="flex items-center px-4 py-3 mx-4 text-white/70 hover:bg-white/10 hover:text-white rounded-lg font-medium transition duration-200">
+                <i data-lucide="bar-chart-2" class="h-5 w-5 mr-4"></i>
+                <span>Prediction Results</span>
+            </a>
+
+            <a href="history.html" class="flex items-center px-4 py-3 mx-4 bg-surface text-primary rounded-lg font-bold transition duration-200 shadow-md">
+                <i data-lucide="history" class="h-5 w-5 mr-4"></i>
+                <span>History Logs</span>
+            </a>
+        </nav>
+
+        <!-- User & Logout Footer -->
+        <div class="p-6 border-t border-white/10 shrink-0">
+            <div class="flex items-center mb-6">
+                <div class="h-10 w-10 rounded-lg bg-primaryLight flex items-center justify-center text-sm font-bold shadow-inner border border-white/20">
+                    AD
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-bold text-white leading-tight">Admin Staff</p>
+                    <p class="text-xs text-white/60">admin@usd.ac.id</p>
+                </div>
+            </div>
+            <a href="login.html" class="flex items-center px-4 py-2.5 w-full text-sm font-semibold text-white/80 hover:bg-white/10 hover:text-white rounded-lg transition duration-200">
+                <i data-lucide="log-out" class="h-4 w-4 mr-3"></i>
+                Secure Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 flex flex-col h-full overflow-hidden bg-background relative z-10">
+        
+        <!-- Header -->
+        <header class="h-20 bg-surface border-b border-border flex items-center justify-between px-8 shrink-0 shadow-sm">
+            <div>
+                <h1 class="text-2xl font-bold text-secondary">Batch Archive Details</h1>
+                <p class="text-sm text-gray-500 mt-1">Reviewing historical prediction results from a past session.</p>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <button class="p-2 text-gray-400 hover:text-primary transition-colors bg-gray-50 rounded-full hover:bg-gray-100">
+                    <i data-lucide="bell" class="h-5 w-5"></i>
+                </button>
+                <div class="h-8 w-px bg-border"></div>
+                <div class="text-sm text-gray-600 font-medium bg-white border border-border px-4 py-2 rounded-lg shadow-sm flex items-center">
+                    <i data-lucide="calendar" class="h-4 w-4 mr-2 text-primary"></i>
+                    <span>Semester Ganjil 2026/2027</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-8">
+            
+            <div class="max-w-7xl mx-auto mb-6">
+                <a href="history.html" class="inline-flex items-center text-sm font-medium text-gray-500 hover:text-primary transition-colors bg-white px-4 py-2 rounded-lg border border-border shadow-sm">
+                    <i data-lucide="arrow-left" class="h-4 w-4 mr-2"></i> Back to History Logs
+                </a>
+            </div>
+
+            <!-- Batch Metadata Header -->
+            <div class="max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden mb-8 p-6 lg:p-8 flex flex-col lg:flex-row justify-between items-start lg:items-center">
+                <div>
+                    <h2 class="text-2xl font-bold text-secondary flex items-center mb-2">
+                        <i data-lucide="archive" class="h-6 w-6 mr-2 text-primary"></i>
+                        Batch #BATCH-1044
+                    </h2>
+                    <p class="text-sm text-gray-500">Processed on <span class="font-medium text-secondary">23 Jun 2026, 14:30</span> by Admin Staff</p>
+                </div>
+                
+                <div class="mt-4 lg:mt-0 flex gap-4">
+                    <div class="bg-gray-50 border border-border rounded-xl px-6 py-4 text-center">
+                        <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Total Records</p>
+                        <p class="text-2xl font-bold text-secondary">245</p>
+                    </div>
+                    <div class="bg-red-50 border border-red-100 rounded-xl px-6 py-4 text-center">
+                        <p class="text-xs text-red-800 uppercase font-semibold mb-1">Flagged</p>
+                        <p class="text-2xl font-bold text-red-600">24</p>
+                    </div>
+                    <div class="bg-green-50 border border-green-100 rounded-xl px-6 py-4 text-center">
+                        <p class="text-xs text-green-800 uppercase font-semibold mb-1">Pass Rate</p>
+                        <p class="text-2xl font-bold text-green-600">90.2%</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Read-Only Prediction Table Container -->
+            <div class="w-full max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
+                
+                <!-- Toolbar -->
+                <div class="px-6 py-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
+                    <div>
+                        <h2 class="text-lg font-bold text-secondary flex items-center">
+                            <i data-lucide="clipboard-list" class="h-5 w-5 mr-2 text-primary"></i>
+                            Flagged Students (Historical Record)
+                        </h2>
+                    </div>
+                    
+                    <button class="px-5 py-2.5 bg-white text-secondary font-bold border border-border rounded-lg hover:bg-gray-50 transition-colors shadow-sm whitespace-nowrap flex items-center">
+                        <i data-lucide="download" class="h-4 w-4 mr-2"></i>
+                        Re-download Report PDF
+                    </button>
+                </div>
+
+                <!-- Table -->
+                <div class="overflow-x-auto opacity-90 pointer-events-none">
+                    <!-- The pointer-events-none makes it explicitly read-only, preventing clicks, though we can selectively enable it if needed. For this prompt, it's a read-only mirror. -->
+                    <table class="w-full text-left text-sm text-gray-600">
+                        <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-b border-border">
+                            <tr>
+                                <th scope="col" class="px-6 py-4 font-semibold w-1/3">NIM</th>
+                                <th scope="col" class="px-6 py-4 font-semibold w-1/3">Nomor PMB</th>
+                                <th scope="col" class="px-6 py-4 font-semibold text-right w-1/3">Status at Time of Run</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border">
+                            <tr class="bg-white">
+                                <td class="px-6 py-4 font-medium text-secondary">205314012</td>
+                                <td class="px-6 py-4">PMB20012</td>
+                                <td class="px-6 py-4 text-right">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                                        Tidak Lolos
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr class="bg-gray-50/50">
+                                <td class="px-6 py-4 font-medium text-secondary">205314033</td>
+                                <td class="px-6 py-4">PMB20033</td>
+                                <td class="px-6 py-4 text-right">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                                        Tidak Lolos
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr class="bg-white">
+                                <td class="px-6 py-4 font-medium text-secondary">205314088</td>
+                                <td class="px-6 py-4">PMB20088</td>
+                                <td class="px-6 py-4 text-right">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                                        Tidak Lolos
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="px-6 py-4 bg-gray-50 border-t border-border flex justify-center">
+                    <p class="text-xs text-gray-400 italic">This is an archived, read-only snapshot. Data cannot be modified.</p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+        <!-- Initialize Lucide Icons -->
+    <script>
+        lucide.createIcons();
+        
+        // Mobile Sidebar Toggle Logic
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+
+        function toggleSidebar() {
+            if(!sidebar) return;
+            const isClosed = sidebar.classList.contains('-translate-x-full');
+            if (isClosed) {
+                sidebar.classList.remove('-translate-x-full');
+                mobileOverlay.classList.remove('hidden');
+                setTimeout(() => mobileOverlay.classList.remove('opacity-0'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                mobileOverlay.classList.add('opacity-0');
+                setTimeout(() => mobileOverlay.classList.add('hidden'), 300);
+            }
+        }
+
+        if(mobileMenuBtn) mobileMenuBtn.addEventListener('click', toggleSidebar);
+        if(closeSidebarBtn) closeSidebarBtn.addEventListener('click', toggleSidebar);
+        if(mobileOverlay) mobileOverlay.addEventListener('click', toggleSidebar);
+    </script>
+</body>
+</html>

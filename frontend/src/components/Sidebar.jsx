@@ -6,6 +6,7 @@ import {
   LogOut,
   X,
   Settings2,
+  Users,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -13,14 +14,20 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const location = useLocation();
   const currentPath = location.pathname;
 
-  // 1. DATA PENGGUNA (Sesuai dengan UI profil di bagian bawah)
-  const userEmail = "@admin.com"; // Ganti dengan email pengguna yang sesuai
-  const userName = "Staf Admin";
+  // 1. DATA PENGGUNA dari localStorage
+  let user = { email: "@admin.com", name: "Staf Admin", role: "admin" };
+  try {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      user = JSON.parse(savedUser);
+    }
+  } catch (e) {
+    console.error("Gagal membaca data user", e);
+  }
 
-  // 2. LOGIKA OTOMATIS: Jika email mengandung kata 'admin', set role menjadi 'admin'
-  const computedRole = userEmail.toLowerCase().includes("admin")
-    ? "admin"
-    : "user";
+  const userEmail = user.email;
+  const userName = user.name;
+  const computedRole = user.role;
 
   return (
     <>
@@ -80,13 +87,22 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
           {/* MENU KHUSUS ADMIN */}
           {computedRole === "admin" && (
-            <Link
-              to="/admin/model"
-              className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-4 ${currentPath === "/admin/model" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
-            >
-              <Settings2 className="h-5 w-5 mr-4 text-accent" />
-              <span>Kelola Model AI</span>
-            </Link>
+            <>
+              <Link
+                to="/admin/model"
+                className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-4 ${currentPath === "/admin/model" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
+              >
+                <Settings2 className="h-5 w-5 mr-4 text-accent" />
+                <span>Kelola Model AI</span>
+              </Link>
+              <Link
+                to="/admin/users"
+                className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 ${currentPath === "/admin/users" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
+              >
+                <Users className="h-5 w-5 mr-4 text-accent" />
+                <span>Kelola Pengguna / DPA</span>
+              </Link>
+            </>
           )}
         </nav>
 

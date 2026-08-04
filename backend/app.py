@@ -75,6 +75,28 @@ def init_db():
             is_active INTEGER DEFAULT 0
         )
     ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            name TEXT NOT NULL,
+            role TEXT NOT NULL
+        )
+    ''')
+    
+    # Seed default users if empty
+    c.execute("SELECT COUNT(*) FROM users")
+    if c.fetchone()[0] == 0:
+        import hashlib
+        def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
+        
+        users_data = [
+            ('admin@gmail.com', hash_pw('admin123'), 'Staf Admin', 'admin'),
+            ('dpa@gmail.com', hash_pw('dpa123'), 'Dosen Pembimbing', 'dpa')
+        ]
+        c.executemany('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', users_data)
+        
     conn.commit()
     conn.close()
 
@@ -121,6 +143,125 @@ def build_cnn_model(input_shape, n_classes):
     ])
     return model
 
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'error': 'Email dan password wajib diisi'}), 400
+        
+    email = data.get('email')
+    password = data.get('password')
+    
+    import hashlib
+    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT id, email, name, role FROM users WHERE email = ? AND password = ?", (email, hashed_pw))
+        user = c.fetchone()
+        conn.close()
+        
+        if user:
+            return jsonify({
+                'message': 'Login berhasil',
+                'user': {
+                    'id': user['id'],
+                    'email': user['email'],
+                    'name': user['name'],
+                    'role': user['role']
+                }
+            }), 200
+        else:
+            return jsonify({'error': 'Kredensial tidak valid'}), 401
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/users', methods=['GET'])
+def get_users():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, email, name, role FROM users WHERE role = 'dpa' ORDER BY id DESC")
+    users = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return jsonify(users), 200
+
+@app.route('/api/users', methods=['POST'])
+def create_user():
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
+    name = data.get('name')
+    
+    if not email or not password or not name:
+        return jsonify({'error': 'Semua field wajib diisi'}), 400
+        
+    import hashlib
+    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', (email, hashed_pw, name, 'dpa'))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Berhasil menambahkan DPA baru'}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Email sudah terdaftar'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+def get_user(user_id):
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, email, name, role FROM users WHERE id = ? AND role = 'dpa'", (user_id,))
+    user = c.fetchone()
+    conn.close()
+    if user:
+        return jsonify(dict(user)), 200
+    return jsonify({'error': 'User tidak ditemukan'}), 404
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    data = request.json
+    email = data.get('email')
+    name = data.get('name')
+    password = data.get('password')
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        if password:
+            import hashlib
+            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+            c.execute('UPDATE users SET email = ?, name = ?, password = ? WHERE id = ? AND role = "dpa"', (email, name, hashed_pw, user_id))
+        else:
+            c.execute('UPDATE users SET email = ?, name = ? WHERE id = ? AND role = "dpa"', (email, name, user_id))
+            
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Berhasil memperbarui data DPA'}), 200
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Email sudah digunakan oleh akun lain'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute('DELETE FROM users WHERE id = ? AND role = "dpa"', (user_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Berhasil menghapus DPA'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/preview', methods=['POST'])
 def preview_data():
     if 'file' not in request.files:
@@ -130,6 +271,7 @@ def preview_data():
     sheet_param = request.form.get('sheet', None)
     prodi = request.form.get('prodi', 'Unknown')
     angkatan = request.form.get('angkatan', 'Unknown')
+    semester = request.form.get('semester', 'Unknown')
     
     try:
         excel_file = pd.ExcelFile(file)
@@ -140,11 +282,13 @@ def preview_data():
             
         df = pd.read_excel(excel_file, sheet_name=sheet_to_read)
         
-        # Filter by Angkatan and Prodi if columns exist
-        if 'Angkatan' in df.columns and angkatan != 'Unknown':
+        # Filter by Angkatan, Prodi, Semester if columns exist
+        if 'Angkatan' in df.columns and angkatan != 'Unknown' and angkatan != '':
             df = df[df['Angkatan'].astype(str) == str(angkatan)]
-        if 'Prodi' in df.columns and prodi != 'Unknown':
+        if 'Prodi' in df.columns and prodi != 'Unknown' and prodi != '':
             df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
+        if 'Semester' in df.columns and semester != 'Unknown' and semester != '':
+            df = df[df['Semester'].astype(str) == str(semester)]
             
         # Convert first 10 rows to dict for preview
         preview_data = df.head(10).replace({np.nan: None}).to_dict(orient='records')
@@ -457,6 +601,7 @@ def predict():
 
     prodi = request.form.get('prodi', 'Unknown')
     angkatan = request.form.get('angkatan', 'Unknown')
+    semester = request.form.get('semester', 'Unknown')
 
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
@@ -501,14 +646,16 @@ def predict():
         sheet_to_read = 'TEST_SEM3' if 'TEST_SEM3' in excel_file.sheet_names else 0
         df = pd.read_excel(excel_file, sheet_name=sheet_to_read)
         
-        # Filter by Angkatan and Prodi jika kolom tersedia di Excel
+        # Filter by Angkatan, Prodi, and Semester jika kolom tersedia di Excel
         if 'Angkatan' in df.columns and angkatan != 'Unknown' and angkatan != '':
             df = df[df['Angkatan'].astype(str) == str(angkatan)]
         if 'Prodi' in df.columns and prodi != 'Unknown' and prodi != '':
             df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
+        if 'Semester' in df.columns and semester != 'Unknown' and semester != '':
+            df = df[df['Semester'].astype(str) == str(semester)]
             
         if len(df) == 0:
-            return jsonify({'error': f"Tidak ada data uji (TEST) untuk Angkatan {angkatan} dan Prodi {prodi}."}), 400
+            return jsonify({'error': f"Tidak ada data uji (TEST) untuk kriteria yang dipilih."}), 400
             
         original_df = df.copy()
     except Exception as e:

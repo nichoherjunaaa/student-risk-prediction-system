@@ -22,6 +22,7 @@ const Upload = () => {
   const [predictProgress, setPredictProgress] = useState(0);
   const [prodi, setProdi] = useState("");
   const [angkatan, setAngkatan] = useState("");
+  const [semester, setSemester] = useState("");
   const navigate = useNavigate();
 
   // Memanggil pratinjau data excel (10 baris pertama) ke backend
@@ -30,6 +31,7 @@ const Upload = () => {
     formData.append("file", selectedFile);
     formData.append("prodi", currentProdi);
     formData.append("angkatan", currentAngkatan);
+    formData.append("semester", semester);
     try {
       const response = await axios.post(
         "http://localhost:5000/api/preview",
@@ -83,6 +85,7 @@ const Upload = () => {
     formData.append("file", file);
     formData.append("prodi", prodi);
     formData.append("angkatan", angkatan);
+    formData.append("semester", semester);
 
     try {
       const response = await axios.post(
@@ -136,14 +139,22 @@ const Upload = () => {
               <UploadCloud className="text-primary" /> Unggah Berkas Evaluasi
               Baru
             </h2>
-            <p className="text-sm text-gray-500 mb-6">
-              Silakan tentukan parameter filter program studi dan masukkan file
-              rekap nilai mahasiswa semester 3 untuk dianalisis oleh kecerdasan
-              buatan.
-            </p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+              <p className="text-sm text-gray-500 max-w-2xl">
+                Silakan tentukan parameter filter program studi dan masukkan file
+                rekap nilai mahasiswa untuk dianalisis oleh kecerdasan
+                buatan.
+              </p>
+              <button
+                onClick={() => window.open("/template_nilai_mahasiswa.xlsx", "_blank")}
+                className="px-4 py-2 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition flex items-center gap-2 text-sm whitespace-nowrap"
+              >
+                Unduh Template Excel
+              </button>
+            </div>
 
             {/* Sektor Filter Dropdown Sesuai Aturan Main Bawaan */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Program Studi
@@ -176,6 +187,22 @@ const Upload = () => {
                   <option value="2022">2022</option>
                   <option value="2023">2023</option>
                   <option value="2024">2024</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Semester
+                </label>
+                <select
+                  value={semester}
+                  onChange={(e) => setSemester(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
+                >
+                  <option value="">-- Pilih Semester --</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                    <option key={sem} value={sem}>Semester {sem}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -237,23 +264,41 @@ const Upload = () => {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-gray-50 border-b border-border text-gray-500 font-semibold uppercase tracking-wider">
-                      {previewData.columns.map((col, idx) => (
-                        <th key={idx} className="p-3 whitespace-nowrap">
-                          {col}
-                        </th>
-                      ))}
+                      <th className="p-3 whitespace-nowrap">NIM</th>
+                      <th className="p-3 whitespace-nowrap">Nama Mahasiswa</th>
+                      <th className="p-3 whitespace-nowrap">IPK {semester ? `Semester ${semester}` : ''}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border text-gray-600">
-                    {previewData.data.map((row, rowIdx) => (
+                    {previewData.data.map((row, rowIdx) => {
+                      const nim = row['NIM'] || row['nim'] || row['Nomor PMB'] || '-';
+                      const nama = row['Nama'] || row['Nama Mahasiswa'] || row['nama'] || '-';
+                      
+                      // Mencari kolom IPK yang sesuai dengan semester yang dipilih, atau kolom IPK default
+                      let ipk = '-';
+                      if (semester) {
+                        const ipkCol = `IPK ${semester}`;
+                        if (row[ipkCol] !== undefined) {
+                          ipk = row[ipkCol];
+                        }
+                      } else {
+                         // Fallback jika tidak ada semester yg dipilih (cari IPK berapapun)
+                         const ipkKey = Object.keys(row).find(k => k.toLowerCase().includes('ipk'));
+                         if (ipkKey) ipk = row[ipkKey];
+                      }
+
+                      return (
                       <tr key={rowIdx} className="hover:bg-gray-50/50">
-                        {previewData.columns.map((col, colIdx) => (
-                          <td key={colIdx} className="p-3 whitespace-nowrap">
-                            {row[col] !== null ? String(row[col]) : "-"}
-                          </td>
-                        ))}
+                        <td className="p-3 whitespace-nowrap font-medium text-secondary">{nim}</td>
+                        <td className="p-3 whitespace-nowrap">{nama}</td>
+                        <td className="p-3 whitespace-nowrap">
+                          <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
+                            {ipk !== null && ipk !== '-' ? Number(ipk).toFixed(2) : '-'}
+                          </span>
+                        </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
