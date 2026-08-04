@@ -900,17 +900,30 @@ def activate_model(model_id):
 
 @app.route('/api/student/<nim>', methods=['GET'])
 def get_student(nim):
+    batch_id = request.args.get('batch')
+    
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    # Get the latest prediction for this nim
-    c.execute('''
-        SELECT p.*, b.batch_name, b.date_uploaded 
-        FROM predictions p 
-        JOIN batches b ON p.batch_id = b.id 
-        WHERE p.nim = ? 
-        ORDER BY p.id DESC LIMIT 1
-    ''', (nim,))
+    
+    if batch_id:
+        c.execute('''
+            SELECT p.*, b.batch_name, b.date_uploaded 
+            FROM predictions p 
+            JOIN batches b ON p.batch_id = b.id 
+            WHERE p.nim = ? AND p.batch_id = ?
+            ORDER BY p.id DESC LIMIT 1
+        ''', (nim, batch_id))
+    else:
+        # Get the latest prediction for this nim across all batches
+        c.execute('''
+            SELECT p.*, b.batch_name, b.date_uploaded 
+            FROM predictions p 
+            JOIN batches b ON p.batch_id = b.id 
+            WHERE p.nim = ? 
+            ORDER BY p.id DESC LIMIT 1
+        ''', (nim,))
+        
     row = c.fetchone()
     conn.close()
     

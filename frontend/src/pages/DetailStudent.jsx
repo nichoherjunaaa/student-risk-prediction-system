@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, User, AlertTriangle, BookOpen, TrendingDown, Layers, ShieldAlert, XCircle, Printer, Mail, GraduationCap } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -10,6 +10,9 @@ import autoTable from 'jspdf-autotable';
 const DetailStudent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { nim } = useParams();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const batchId = searchParams.get('batch');
   
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,7 +20,11 @@ const DetailStudent = () => {
   useEffect(() => {
     const fetchStudent = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/api/student/${nim}`);
+        let url = `http://localhost:5000/api/student/${nim}`;
+        if (batchId) {
+          url += `?batch=${batchId}`;
+        }
+        const response = await axios.get(url);
         setStudentData(response.data);
       } catch (error) {
         console.error("Gagal mengambil data mahasiswa", error);
@@ -25,7 +32,7 @@ const DetailStudent = () => {
       setLoading(false);
     };
     fetchStudent();
-  }, [nim]);
+  }, [nim, batchId]);
 
   if (loading) {
     return (

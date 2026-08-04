@@ -183,7 +183,7 @@ const DetailBatch = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Link to={`/detail/${student.nim}`} className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-md hover:bg-primary/20 transition-colors">
+                        <Link to={`/detail/${student.nim}?batch=${id}`} className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${student.is_risk ? 'text-red-700 bg-red-100 border border-red-200 hover:bg-red-200' : 'text-green-700 bg-green-100 border border-green-200 hover:bg-green-200'}`}>
                           Lihat Detail
                         </Link>
                       </td>
