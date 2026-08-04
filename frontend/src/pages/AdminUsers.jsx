@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Users, Plus, Trash2, Edit } from "lucide-react";
+import { Users, Plus, Trash2, Edit, Shield } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import axios from "axios";
@@ -60,12 +60,20 @@ const AdminUsers = () => {
                   Kelola master data akun DPA yang memiliki akses untuk mengunggah dan melakukan prediksi nilai mahasiswa.
                 </p>
               </div>
-              <button
-                onClick={() => handleOpenModal()}
-                className="px-4 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition shadow-sm flex items-center gap-2"
-              >
-                <Plus size={18} /> Tambah DPA Baru
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => navigate("/admin/roles")}
+                  className="px-4 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition shadow-sm flex items-center gap-2 border border-gray-200"
+                >
+                  <Shield size={18} /> Manajemen Role
+                </button>
+                <button
+                  onClick={() => handleOpenModal()}
+                  className="px-4 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition shadow-sm flex items-center gap-2"
+                >
+                  <Plus size={18} /> Tambah DPA Baru
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
