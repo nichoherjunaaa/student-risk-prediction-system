@@ -59,7 +59,7 @@ const Header = ({ title, subtitle, toggleSidebar }) => {
 
       <div className="flex-none shadow-sm z-10 shrink-0">
         <header className="h-14 bg-surface border-b border-border hidden lg:flex items-center justify-between px-6">
-          <div className="flex space-x-2">
+          <div className="hidden space-x-2">
             <button className="flex items-center space-x-1 px-4 py-1.5 bg-primary text-white text-sm font-medium rounded hover:bg-primary-dark transition-colors">
               <span>Beranda Sistem</span>
               <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
@@ -74,7 +74,7 @@ const Header = ({ title, subtitle, toggleSidebar }) => {
             </button>
           </div>
           
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 ml-auto">
             <div className="text-sm text-gray-600 font-medium mr-4 flex items-center bg-gray-50 border border-border px-3 py-1.5 rounded-md">
               <Calendar className="h-4 w-4 mr-2 text-primary" />
               <span>{getAcademicSemester()}</span>
