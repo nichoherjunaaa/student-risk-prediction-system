@@ -107,6 +107,7 @@ const Header = ({ title, subtitle, toggleSidebar }) => {
               </div>
             )}
           </div>
+          </div>
         </header>
 
         {/* Area Judul Halaman */}
