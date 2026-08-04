@@ -278,6 +278,8 @@ def preview_data():
         excel_file = pd.ExcelFile(file)
         if sheet_param and sheet_param in excel_file.sheet_names:
             sheet_to_read = sheet_param
+        elif 'TEST_SEM3' in excel_file.sheet_names:
+            sheet_to_read = 'TEST_SEM3'
         else:
             sheet_to_read = excel_file.sheet_names[0]
             
@@ -724,13 +726,22 @@ def predict():
         nama = original_df['Nama'].iloc[i] if 'Nama' in original_df.columns else (original_df['Nama Mahasiswa'].iloc[i] if 'Nama Mahasiswa' in original_df.columns else str(nim))
         prodi_val = original_df['Prodi'].iloc[i] if 'Prodi' in original_df.columns else prodi
         
-        # Get grades and find failed subjects (e.g. 'D', 'E', 'T')
+        # Get grades and find failed/passed subjects
         failed_subjects = []
+        passed_subjects = []
+        sks_passed = 0
+        sks_failed = 0
         for col in original_df.columns:
             if col not in ['NIM', 'Nomor Pendaftaran', 'Nomor PMB', 'Nama', 'Nama Mahasiswa', 'Prodi', 'Angkatan', 'Label', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3'] and not pd.isna(original_df[col].iloc[i]):
                 val = str(original_df[col].iloc[i]).strip().upper()
+                # Assumption: 3 SKS per subject since actual SKS isn't in column names
+                sks_matkul = 3
                 if val in ['D', 'E', 'T', 'D+', 'D-']:
-                    failed_subjects.append({'matkul': col, 'nilai': val})
+                    failed_subjects.append({'matkul': col, 'nilai': val, 'sks': sks_matkul})
+                    sks_failed += sks_matkul
+                elif val in ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-']:
+                    passed_subjects.append({'matkul': col, 'nilai': val, 'sks': sks_matkul})
+                    sks_passed += sks_matkul
 
         details_dict = {
             'nama': str(nama),
@@ -739,7 +750,10 @@ def predict():
             'ipk2': float(original_df['IPK 2'].iloc[i]) if 'IPK 2' in original_df.columns and not pd.isna(original_df['IPK 2'].iloc[i]) else 0.0,
             'ipk3': float(original_df['IPK 3'].iloc[i]) if 'IPK 3' in original_df.columns and not pd.isna(original_df['IPK 3'].iloc[i]) else 0.0,
             'sks3': int(original_df['Total SKS 3'].iloc[i]) if 'Total SKS 3' in original_df.columns and not pd.isna(original_df['Total SKS 3'].iloc[i]) else 0,
-            'failed_subjects': failed_subjects
+            'failed_subjects': failed_subjects,
+            'passed_subjects': passed_subjects,
+            'sks_passed': sks_passed,
+            'sks_failed': sks_failed
         }
 
         label_str = str(label).strip().upper()

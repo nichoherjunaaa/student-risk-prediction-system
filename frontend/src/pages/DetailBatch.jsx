@@ -165,7 +165,8 @@ const DetailBatch = () => {
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-border">
                   <tr>
                     <th scope="col" className="px-6 py-4 font-semibold w-1/4">NIM</th>
-                    <th scope="col" className="px-6 py-4 font-semibold w-1/2">Nama Mahasiswa</th>
+                    <th scope="col" className="px-6 py-4 font-semibold w-1/4">Nama Mahasiswa</th>
+                    <th scope="col" className="px-6 py-4 font-semibold w-1/4">IPK Semester 3</th>
                     <th scope="col" className="px-6 py-4 font-semibold text-right w-1/4">Aksi</th>
                   </tr>
                 </thead>
@@ -176,6 +177,11 @@ const DetailBatch = () => {
                     <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                       <td className="px-6 py-4 font-medium text-secondary">{student.nim}</td>
                       <td className="px-6 py-4">{details.nama || '-'}</td>
+                      <td className="px-6 py-4">
+                        <span className="bg-gray-100 text-secondary text-xs font-bold px-2 py-1 rounded">
+                          {details.ipk3 ? details.ipk3.toFixed(2) : '-'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <Link to={`/detail/${student.nim}`} className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-md hover:bg-primary/20 transition-colors">
                           Lihat Detail

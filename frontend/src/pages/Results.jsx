@@ -256,8 +256,6 @@ const Results = () => {
               </div>
             </div>
           </div>
-
-          </div>
         </div>
       </main>
     </div>

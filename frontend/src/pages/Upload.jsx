@@ -272,19 +272,22 @@ const Upload = () => {
                   <tbody className="divide-y divide-border text-gray-600">
                     {previewData.data.map((row, rowIdx) => {
                       const nim = row['NIM'] || row['nim'] || row['Nomor PMB'] || '-';
-                      const nama = row['Nama'] || row['Nama Mahasiswa'] || row['nama'] || '-';
+                      const nama = row['Nama'] || row['Nama Mahasiswa'] || row['nama'] || '(Anonim/Data Tidak Memiliki Nama)';
                       
-                      // Mencari kolom IPK yang sesuai dengan semester yang dipilih, atau kolom IPK default
+                      // Mencari kolom IPK yang sesuai dengan semester yang dipilih secara fleksibel
                       let ipk = '-';
                       if (semester) {
-                        const ipkCol = `IPK ${semester}`;
-                        if (row[ipkCol] !== undefined) {
-                          ipk = row[ipkCol];
+                        const targetSem = String(semester);
+                        const ipkKey = Object.keys(row).find(k => 
+                          k.toLowerCase().replace(/\s+/g, '') === `ipk${targetSem}`
+                        );
+                        if (ipkKey && row[ipkKey] !== undefined && row[ipkKey] !== null) {
+                          ipk = row[ipkKey];
                         }
                       } else {
                          // Fallback jika tidak ada semester yg dipilih (cari IPK berapapun)
                          const ipkKey = Object.keys(row).find(k => k.toLowerCase().includes('ipk'));
-                         if (ipkKey) ipk = row[ipkKey];
+                         if (ipkKey && row[ipkKey] !== undefined && row[ipkKey] !== null) ipk = row[ipkKey];
                       }
 
                       return (

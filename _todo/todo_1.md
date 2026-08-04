@@ -32,15 +32,15 @@
 ## 3. Fitur Bersama (Role Admin & DPA)
 
 ### Opsi Download & Interaktivitas PDF / Laporan
-- [ ] **Informasi Mahasiswa pada PDF**
+- [x] **Informasi Mahasiswa pada PDF**
   - Menampilkan header data utama:
     - Nama Mahasiswa
     - NIM
     - Program Studi (Prodi)
-- [ ] **Interaktivitas Bar Chart**
+- [x] **Interaktivitas Bar Chart**
   - Saat batang pada Bar Chart diklik, tampilkan daftar mahasiswa terkait.
   - Hapus tampilan tabel/daftar mahasiswa statis yang sebelumnya berada di bawah chart.
-- [ ] **Modal / Tampilan "Lihat Detail"**
+- [x] **Modal / Tampilan "Lihat Detail"**
   - Jika tombol **Lihat Detil** diklik, tampilkan daftar nilai mata kuliah (Matkul) yang **belum lulus** pada semester tersebut.
-- [ ] **Metrik Persentase**
+- [x] **Metrik Persentase**
   - Ubah indikator persentase agar menampilkan **persentase mahasiswa yang berpotensi mengikuti sisip program** (bukan persentase mahasiswa yang lulus).
