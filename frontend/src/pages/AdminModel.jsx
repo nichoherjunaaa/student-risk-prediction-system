@@ -31,6 +31,9 @@ const AdminModel = () => {
   // State Hyperparameter Eksperimen Model
   const [epochs, setEpochs] = useState(10);
   const [batchSize, setBatchSize] = useState(32);
+  const [learningRate, setLearningRate] = useState(0.001);
+  const [dropoutRate, setDropoutRate] = useState(0.3);
+  const [valSplit, setValSplit] = useState(0.2);
 
   // State Manajemen Registri Riwayat Model
   const [modelHistory, setModelHistory] = useState([]);
@@ -86,6 +89,9 @@ const AdminModel = () => {
     formData.append("angkatan", angkatan);
     formData.append("epochs", epochs);
     formData.append("batch_size", batchSize);
+    formData.append("learning_rate", learningRate);
+    formData.append("dropout_rate", dropoutRate);
+    formData.append("val_split", valSplit);
 
     try {
       const response = await axios.post(
@@ -174,18 +180,13 @@ const AdminModel = () => {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Tahun Angkatan Latih
                 </label>
-                <select
+                <input
+                  type="text"
+                  placeholder="Contoh: 2020, 2021"
                   value={angkatan}
                   onChange={(e) => setAngkatan(e.target.value)}
                   className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-                >
-                  <option value="">-- Semua Angkatan --</option>
-                  <option value="2020">2020</option>
-                  <option value="2021">2021</option>
-                  <option value="2022">2022</option>
-                  <option value="2023">2023</option>
-                  <option value="2024">2024</option>
-                </select>
+                />
               </div>
 
               <div>
@@ -217,6 +218,51 @@ const AdminModel = () => {
                   <option value="64">64</option>
                   <option value="128">128</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Learning Rate
+                </label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0.0001"
+                  max="0.1"
+                  value={learningRate}
+                  onChange={(e) => setLearningRate(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Dropout Rate
+                </label>
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  max="0.8"
+                  value={dropoutRate}
+                  onChange={(e) => setDropoutRate(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Validation Split
+                </label>
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0.1"
+                  max="0.5"
+                  value={valSplit}
+                  onChange={(e) => setValSplit(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                />
               </div>
             </div>
 

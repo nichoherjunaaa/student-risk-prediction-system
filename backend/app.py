@@ -117,25 +117,25 @@ def find_grid_dimensions(n):
             factors.append((i, n // i))
     return factors[-1] if factors else (int(np.sqrt(n)), int(np.ceil(n / np.sqrt(n))))
 
-def build_cnn_model(input_shape, n_classes):
+def build_cnn_model(input_shape, n_classes, dropout_rate=0.3):
     model = keras.Sequential([
         layers.Conv2D(8, (3, 3), activation="relu", input_shape=input_shape, padding="same"),
         layers.BatchNormalization(),
         layers.MaxPooling2D((2, 2)),
-        layers.Dropout(0.3),
+        layers.Dropout(dropout_rate),
 
         layers.Conv2D(16, (3, 3), activation="relu", padding="same"),
         layers.BatchNormalization(),
         layers.MaxPooling2D((2, 2)),
-        layers.Dropout(0.3),
+        layers.Dropout(dropout_rate),
 
         layers.Flatten(),
         layers.Dense(64, activation="relu"),
         layers.BatchNormalization(),
-        layers.Dropout(0.3),
+        layers.Dropout(dropout_rate),
 
         layers.Dense(32, activation="relu"),
-        layers.Dropout(0.2),
+        layers.Dropout(dropout_rate - 0.1 if dropout_rate >= 0.1 else 0),
 
         layers.Dense(
             n_classes if n_classes > 2 else 1,
@@ -318,6 +318,9 @@ def train_model():
     # Ambil hyperparameters dari form
     epochs_val = int(request.form.get('epochs', 10))
     batch_size_val = int(request.form.get('batch_size', 32))
+    learning_rate_val = float(request.form.get('learning_rate', 0.001))
+    dropout_rate_val = float(request.form.get('dropout_rate', 0.3))
+    val_split_val = float(request.form.get('val_split', 0.2))
 
     try:
         excel_file = pd.ExcelFile(file)
@@ -329,7 +332,9 @@ def train_model():
             df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
         
         if 'Angkatan' in df.columns and angkatan != '':
-            df = df[df['Angkatan'].astype(str) == str(angkatan)]
+            angkatan_list = [a.strip() for a in angkatan.split(',') if a.strip()]
+            if angkatan_list:
+                df = df[df['Angkatan'].astype(str).isin(angkatan_list)]
             
         if len(df) == 0:
             return jsonify({'error': f"Tidak ada data latih (TRAIN) untuk Prodi {prodi}."}), 400
@@ -365,7 +370,7 @@ def train_model():
 
     X_train, X_val, y_train, y_val = train_test_split(
         X_scaled, y_encoded, 
-        test_size=0.2, 
+        test_size=val_split_val, 
         random_state=42,
         stratify=y_encoded
     )
@@ -392,7 +397,7 @@ def train_model():
         'n_features': n_features
     }
 
-    model = build_cnn_model((height, width, 1), n_classes)
+    model = build_cnn_model((height, width, 1), n_classes, dropout_rate=dropout_rate_val)
     
     if n_classes > 2:
         y_train_cat = to_categorical(y_train, n_classes)
@@ -403,7 +408,8 @@ def train_model():
         y_val_cat = y_val
         loss = "binary_crossentropy"
 
-    model.compile(optimizer="adam", loss=loss, metrics=["accuracy"])
+    optimizer = keras.optimizers.Adam(learning_rate=learning_rate_val)
+    model.compile(optimizer=optimizer, loss=loss, metrics=["accuracy"])
     
     class_weights = compute_class_weight(
         "balanced",
