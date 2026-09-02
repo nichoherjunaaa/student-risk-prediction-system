@@ -51,9 +51,11 @@ pipeline {
                 sh '''
                     echo "Waiting for the stack to become healthy..."
                     for i in $(seq 1 36); do
-                        if docker compose exec -T backend curl -fsS http://localhost:5000/api/health >/dev/null 2>&1; then
+                        if docker compose exec -T backend curl -fsS http://127.0.0.1:5000/api/health >/dev/null 2>&1; then
                             echo "Backend healthy."
-                            docker compose exec -T frontend wget -qO- http://localhost/api/health
+                            # confirm Nginx serves the SPA and proxies /api
+                            docker compose exec -T frontend wget -qO- http://127.0.0.1/api/health
+                            echo
                             exit 0
                         fi
                         sleep 5
