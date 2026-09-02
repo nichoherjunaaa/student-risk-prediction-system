@@ -13,6 +13,14 @@ import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import axios from "axios";
 
+// Saklar tampilan hyperparameter (Max Epochs, Batch Size, Learning Rate,
+// Dropout Rate, Validation Split). Disembunyikan sementara: nilainya masih
+// dikirim ke /api/train dari state di bawah, tetapi belum disimpan ke tabel
+// model_registry sehingga setelan tiap model belum bisa ditelusuri.
+// Lihat docs/AUDIT-PIPELINE-PREDIKSI.md — requirement "parameter yang dipilih apa".
+// Ubah ke true untuk menampilkannya kembali.
+const SHOW_HYPERPARAMS = false;
+
 const AdminModel = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [file, setFile] = useState(null);
@@ -189,81 +197,85 @@ const AdminModel = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Max Epochs
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="500"
-                  value={epochs}
-                  onChange={(e) => setEpochs(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-                />
-              </div>
+              {SHOW_HYPERPARAMS && (
+                <>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Max Epochs
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="500"
+                      value={epochs}
+                      onChange={(e) => setEpochs(e.target.value)}
+                      className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Batch Size
-                </label>
-                <select
-                  value={batchSize}
-                  onChange={(e) => setBatchSize(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-                >
-                  <option value="8">8</option>
-                  <option value="16">16</option>
-                  <option value="32">32</option>
-                  <option value="64">64</option>
-                  <option value="128">128</option>
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Batch Size
+                    </label>
+                    <select
+                      value={batchSize}
+                      onChange={(e) => setBatchSize(e.target.value)}
+                      className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                    >
+                      <option value="8">8</option>
+                      <option value="16">16</option>
+                      <option value="32">32</option>
+                      <option value="64">64</option>
+                      <option value="128">128</option>
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Learning Rate
-                </label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min="0.0001"
-                  max="0.1"
-                  value={learningRate}
-                  onChange={(e) => setLearningRate(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Learning Rate
+                    </label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      min="0.0001"
+                      max="0.1"
+                      value={learningRate}
+                      onChange={(e) => setLearningRate(e.target.value)}
+                      className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Dropout Rate
-                </label>
-                <input
-                  type="number"
-                  step="0.05"
-                  min="0"
-                  max="0.8"
-                  value={dropoutRate}
-                  onChange={(e) => setDropoutRate(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Dropout Rate
+                    </label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      max="0.8"
+                      value={dropoutRate}
+                      onChange={(e) => setDropoutRate(e.target.value)}
+                      className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Validation Split
-                </label>
-                <input
-                  type="number"
-                  step="0.05"
-                  min="0.1"
-                  max="0.5"
-                  value={valSplit}
-                  onChange={(e) => setValSplit(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Validation Split
+                    </label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      min="0.1"
+                      max="0.5"
+                      value={valSplit}
+                      onChange={(e) => setValSplit(e.target.value)}
+                      className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex flex-col md:flex-row items-center gap-4">
