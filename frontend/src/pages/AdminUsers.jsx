@@ -20,7 +20,7 @@ const AdminUsers = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get("http://localhost:5000/api/users");
+      const response = await axios.get("/api/users");
       setUsers(response.data);
     } catch (err) {
       console.error("Gagal mengambil data pengguna:", err);
@@ -38,7 +38,7 @@ const AdminUsers = () => {
   const handleDelete = async (id) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus akun DPA ini?")) {
       try {
-        await axios.delete(`http://localhost:5000/api/users/${id}`);
+        await axios.delete(`/api/users/${id}`);
         fetchUsers();
       } catch (err) {
         alert(err.response?.data?.error || "Gagal menghapus pengguna");

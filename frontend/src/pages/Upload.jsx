@@ -34,7 +34,7 @@ const Upload = () => {
     formData.append("semester", semester);
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/preview",
+        "/api/preview",
         formData,
       );
       setPreviewData(response.data);
@@ -96,7 +96,7 @@ const Upload = () => {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/predict",
+        "/api/predict",
         formData,
       );
       clearInterval(progressInterval);

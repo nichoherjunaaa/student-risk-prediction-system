@@ -20,7 +20,7 @@ const DetailStudent = () => {
   useEffect(() => {
     const fetchStudent = async () => {
       try {
-        let url = `http://localhost:5000/api/student/${nim}`;
+        let url = `/api/student/${nim}`;
         if (batchId) {
           url += `?batch=${batchId}`;
         }

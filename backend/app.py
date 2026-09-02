@@ -34,7 +34,27 @@ tf.random.set_seed(42)
 app = Flask(__name__)
 CORS(app)
 
-DB_FILE = 'sisip_database.db'
+# Persistent paths. In production these point at a mounted volume so that
+# the SQLite database and trained model files survive container redeploys.
+DATA_DIR = os.environ.get('SISIP_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
+DB_FILE = os.environ.get('SISIP_DB_FILE', os.path.join(DATA_DIR, 'sisip_database.db'))
+MODEL_DIR = os.environ.get('SISIP_MODEL_DIR', os.path.join(DATA_DIR, 'saved_models'))
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# Default seeded admin credentials (override in production via env).
+DEFAULT_ADMIN_EMAIL = os.environ.get('SISIP_ADMIN_EMAIL', 'admin@gmail.com')
+DEFAULT_ADMIN_PASSWORD = os.environ.get('SISIP_ADMIN_PASSWORD', 'admin123')
+
+
+def resolve_model_path(stored_path):
+    """Resolve a model file path stored in the registry, tolerating rows that
+    were written with a relative 'saved_models/...' prefix before MODEL_DIR
+    became configurable."""
+    if os.path.isabs(stored_path) and os.path.exists(stored_path):
+        return stored_path
+    if os.path.exists(stored_path):
+        return stored_path
+    return os.path.join(MODEL_DIR, os.path.basename(stored_path))
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -94,7 +114,7 @@ def init_db():
         def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
         
         users_data = [
-            ('admin@gmail.com', hash_pw('admin123'), 'Staf Admin', 'admin'),
+            (DEFAULT_ADMIN_EMAIL, hash_pw(DEFAULT_ADMIN_PASSWORD), 'Staf Admin', 'admin'),
             ('dpa@gmail.com', hash_pw('dpa123'), 'Dosen Pembimbing', 'dpa')
         ]
         c.executemany('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', users_data)
@@ -436,18 +456,17 @@ def train_model():
         from datetime import datetime
         import joblib
         
-        if not os.path.exists('saved_models'):
-            os.makedirs('saved_models')
+        os.makedirs(MODEL_DIR, exist_ok=True)
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         prodi_slug = prodi.replace(" ", "_").lower() if prodi else "global"
         version_name = f"Model_2DCNN_{prodi_slug}_{timestamp}"
-        saved_model_path = f"saved_models/{version_name}.keras"
+        saved_model_path = os.path.join(MODEL_DIR, f"{version_name}.keras")
         model.save(saved_model_path)
-        joblib.dump(global_scaler, f"saved_models/{version_name}_scaler.pkl")
-        joblib.dump(global_encoders, f"saved_models/{version_name}_encoders.pkl")
-        joblib.dump(global_le_y, f"saved_models/{version_name}_ley.pkl")
-        joblib.dump(global_config, f"saved_models/{version_name}_config.pkl")
+        joblib.dump(global_scaler, os.path.join(MODEL_DIR, f"{version_name}_scaler.pkl"))
+        joblib.dump(global_encoders, os.path.join(MODEL_DIR, f"{version_name}_encoders.pkl"))
+        joblib.dump(global_le_y, os.path.join(MODEL_DIR, f"{version_name}_ley.pkl"))
+        joblib.dump(global_config, os.path.join(MODEL_DIR, f"{version_name}_config.pkl"))
 
         try:
             accuracy_score = float(history.history['val_accuracy'][-1])
@@ -642,7 +661,7 @@ def predict():
     if not row:
         return jsonify({'error': f"Belum ada model aktif pilihan Admin khusus untuk Prodi {prodi}. Sila hubungi Staf Admin untuk melakukan training model terlebih dahulu."}), 400
 
-    saved_path = row[0]
+    saved_path = resolve_model_path(row[0])
     base_path = saved_path.replace(".keras", "")
 
     # Pastikan file fisik .keras dan berkas pendukung .pkl lengkap di hardisk server hosting
@@ -947,6 +966,17 @@ def get_student(nim):
         student_data['details'] = {}
         
     return jsonify(student_data)
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.execute("SELECT 1")
+        conn.close()
+        return jsonify({'status': 'ok'}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'detail': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

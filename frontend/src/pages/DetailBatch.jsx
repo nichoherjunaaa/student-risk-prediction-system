@@ -20,7 +20,7 @@ const DetailBatch = () => {
   useEffect(() => {
     const fetchBatch = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/api/batch/${id}`);
+        const response = await axios.get(`/api/batch/${id}`);
         setBatch(response.data);
       } catch (error) {
         console.error("Failed to fetch batch details", error);

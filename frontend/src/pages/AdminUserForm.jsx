@@ -22,7 +22,7 @@ const AdminUserForm = () => {
 
   const fetchUser = async (userId) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/users/${userId}`);
+      const response = await axios.get(`/api/users/${userId}`);
       setFormData({
         name: response.data.name,
         email: response.data.email,
@@ -41,9 +41,9 @@ const AdminUserForm = () => {
     
     try {
       if (id) {
-        await axios.put(`http://localhost:5000/api/users/${id}`, formData);
+        await axios.put(`/api/users/${id}`, formData);
       } else {
-        await axios.post("http://localhost:5000/api/users", formData);
+        await axios.post("/api/users", formData);
       }
       navigate("/admin/users");
     } catch (err) {

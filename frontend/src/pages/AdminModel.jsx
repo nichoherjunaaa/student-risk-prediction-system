@@ -45,7 +45,7 @@ const AdminModel = () => {
 
   const fetchModelHistory = async () => {
     try {
-      const response = await axios.get("http://localhost:5000/api/models");
+      const response = await axios.get("/api/models");
       setModelHistory(response.data);
     } catch (err) {
       console.error("Gagal mengambil data registri model:", err);
@@ -95,7 +95,7 @@ const AdminModel = () => {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/train",
+        "/api/train",
         formData,
       );
       clearInterval(progressInterval);
@@ -127,7 +127,7 @@ const AdminModel = () => {
 
   const handleActivateModel = async (modelId) => {
     try {
-      await axios.post(`http://localhost:5000/api/models/${modelId}/activate`);
+      await axios.post(`/api/models/${modelId}/activate`);
       fetchModelHistory();
     } catch (err) {
       alert("Gagal mengunci model aktif untuk prodi ini.");

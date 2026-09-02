@@ -35,7 +35,7 @@ const Results = () => {
     // Fetch real history for the chart
     const fetchHistoryAndDrawChart = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/history');
+        const response = await axios.get('/api/history');
         
         // Filter by selected prodi
         const batches = response.data.batches.filter(b => b.prodi === selectedProdi);

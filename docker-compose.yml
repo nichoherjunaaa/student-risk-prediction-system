@@ -1,0 +1,36 @@
+name: sisip
+
+services:
+  backend:
+    build: ./backend
+    image: sisip-backend:latest
+    container_name: sisip-backend
+    restart: unless-stopped
+    environment:
+      SISIP_DATA_DIR: /data
+      SISIP_DB_FILE: /data/sisip_database.db
+      SISIP_MODEL_DIR: /data/saved_models
+      SISIP_ADMIN_EMAIL: ${SISIP_ADMIN_EMAIL:-admin@gmail.com}
+      SISIP_ADMIN_PASSWORD: ${SISIP_ADMIN_PASSWORD:-admin123}
+    volumes:
+      - sisip-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    build: ./frontend
+    image: sisip-frontend:latest
+    container_name: sisip-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      # Host port configurable to avoid clashing with other apps on the VPS.
+      - "${SISIP_HTTP_PORT:-8090}:80"
+
+volumes:
+  sisip-data:

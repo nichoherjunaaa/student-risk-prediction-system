@@ -13,7 +13,7 @@ const History = () => {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/history');
+        const response = await axios.get('/api/history');
         setBatches(response.data.batches);
       } catch (error) {
         console.error("Failed to fetch history", error);
