@@ -6,7 +6,7 @@ import datetime
 from xml.parsers.expat import model
 import numpy as np
 import pandas as pd
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -296,6 +296,109 @@ def delete_user(user_id):
         return jsonify({'message': 'Berhasil menghapus DPA'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+TEMPLATE_IDENTITY_COLS = [
+    'NIM', 'Nomor PMB', 'Nama', 'Prodi', 'Angkatan', 'Semester',
+    'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3',
+]
+
+
+def _active_model_base(prodi=None):
+    """Path prefix (without .keras) of an active model, or None."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        if prodi:
+            c.execute("SELECT file_path FROM model_registry WHERE is_active = 1 AND prodi = ? LIMIT 1", (prodi,))
+        else:
+            c.execute("SELECT file_path FROM model_registry WHERE is_active = 1 ORDER BY id DESC LIMIT 1")
+        row = c.fetchone()
+        conn.close()
+    except Exception:
+        return None
+    if not row:
+        return None
+    return resolve_model_path(row[0])[:-len('.keras')] if row[0].endswith('.keras') else resolve_model_path(row[0])
+
+
+@app.route('/api/template/predict', methods=['GET'])
+@app.route('/api/template', methods=['GET'])
+def download_predict_template():
+    """Excel template for batch prediction upload. When an active model exists,
+    the feature columns are taken from that model's scaler/encoders so the header
+    matches exactly what the model expects."""
+    import joblib
+
+    prodi = request.args.get('prodi') or None
+    feature_cols = []
+    cat_examples = {}
+
+    base = _active_model_base(prodi)
+    if base:
+        try:
+            scaler = joblib.load(f"{base}_scaler.pkl")
+            encoders = joblib.load(f"{base}_encoders.pkl")
+            if hasattr(scaler, 'feature_names_in_'):
+                feature_cols = [str(c) for c in scaler.feature_names_in_]
+            for col, le in encoders.items():
+                try:
+                    cat_examples[col] = str(le.classes_[0])
+                except Exception:
+                    pass
+        except Exception:
+            feature_cols = []
+
+    cols = TEMPLATE_IDENTITY_COLS + [c for c in feature_cols if c not in TEMPLATE_IDENTITY_COLS]
+
+    def sample_row(idx):
+        r = {}
+        for col in cols:
+            if col == 'NIM':
+                r[col] = f"22{idx:06d}"
+            elif col == 'Nomor PMB':
+                r[col] = f"PMB-{idx:05d}"
+            elif col == 'Nama':
+                r[col] = f"Contoh Mahasiswa {idx}"
+            elif col == 'Prodi':
+                r[col] = prodi or 'informatika'
+            elif col == 'Angkatan':
+                r[col] = 2024
+            elif col == 'Semester':
+                r[col] = 3
+            elif col.startswith('IPK'):
+                r[col] = 3.00
+            elif col == 'Total SKS 3':
+                r[col] = 60
+            elif col in cat_examples:
+                r[col] = cat_examples[col]
+            elif col in feature_cols:
+                r[col] = 0
+            else:
+                r[col] = 'A'
+        return r
+
+    df = pd.DataFrame([sample_row(1), sample_row(2)], columns=cols)
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='TEST_SEM3')
+        note = pd.DataFrame({'Petunjuk': [
+            'Isi baris di sheet TEST_SEM3 dengan data mahasiswa semester berjalan.',
+            'Jangan ubah nama kolom / nama sheet (TEST_SEM3).',
+            'Kolom nilai mata kuliah diisi huruf mutu (A, A-, B+, ... , D, E, T).',
+            'Baris contoh boleh dihapus sebelum diunggah.',
+            'Header kolom mengikuti model aktif' + (f' untuk prodi {prodi}.' if prodi else '.'),
+        ]})
+        note.to_excel(writer, index=False, sheet_name='PETUNJUK')
+    buf.seek(0)
+
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name='template_prediksi_sisip.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+
 
 @app.route('/api/preview', methods=['POST'])
 def preview_data():

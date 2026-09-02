@@ -153,7 +153,14 @@ const Upload = () => {
                 buatan.
               </p>
               <button
-                onClick={() => window.open("/template_nilai_mahasiswa.xlsx", "_blank")}
+                onClick={() =>
+                  window.open(
+                    prodi
+                      ? `/api/template/predict?prodi=${encodeURIComponent(prodi)}`
+                      : "/api/template/predict",
+                    "_blank"
+                  )
+                }
                 className="px-4 py-2 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition flex items-center gap-2 text-sm whitespace-nowrap"
               >
                 Unduh Template Excel
