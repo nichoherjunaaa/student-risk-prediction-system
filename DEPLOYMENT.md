@@ -174,6 +174,20 @@ curl http://43.133.144.108:8090/api/health     # {"status":"ok"}
 
 Buka `http://43.133.144.108:8090` -> login `admin@gmail.com` / password dari `.env`.
 
+### Akun demo untuk testing E2E
+
+`SISIP_SEED_DEMO_USERS=1` (default) membuat 1 akun per role, otomatis setiap
+startup backend (idempotent — tidak menimpa kalau sudah ada):
+
+| Role      | Email                      | Password      | Akses di UI                          |
+|-----------|----------------------------|---------------|-------------------------------------|
+| `admin`   | `admin.test@sisip.test`    | `Admin#2026`   | Master Model, Master Pengguna, Log Riwayat, Unggah, Hasil |
+| `dpa`     | `dpa.test@sisip.test`      | `Dpa#2026`     | Unggah Data, Hasil Prediksi          |
+| `kaprodi` | `kaprodi.test@sisip.test`  | `Kaprodi#2026` | sama dengan DPA (kode UI belum bedakan kaprodi) |
+
+Untuk produksi sungguhan, set `SISIP_SEED_DEMO_USERS=0` di credential `sisip-env`
+lalu hapus akun `*.test@sisip.test` lewat menu **Master Pengguna**.
+
 ---
 
 ## 7. (Opsional) Migrasi data lama

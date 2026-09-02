@@ -107,18 +107,30 @@ def init_db():
         )
     ''')
     
-    # Seed default users if empty
+    import hashlib
+    def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
+
+    # Seed default admin + DPA only on a fresh database.
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
-        import hashlib
-        def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
-        
-        users_data = [
+        c.executemany('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', [
             (DEFAULT_ADMIN_EMAIL, hash_pw(DEFAULT_ADMIN_PASSWORD), 'Staf Admin', 'admin'),
-            ('dpa@gmail.com', hash_pw('dpa123'), 'Dosen Pembimbing', 'dpa')
+            ('dpa@gmail.com', hash_pw('dpa123'), 'Dosen Pembimbing', 'dpa'),
+        ])
+
+    # Demo accounts for end-to-end testing (one per role). Idempotent: safe to
+    # run on every startup. Disable in real production with SISIP_SEED_DEMO_USERS=0.
+    if os.environ.get('SISIP_SEED_DEMO_USERS', '1').lower() in ('1', 'true', 'yes'):
+        demo_users = [
+            ('admin.test@sisip.test',   hash_pw('Admin#2026'),   'Admin Tester',   'admin'),
+            ('dpa.test@sisip.test',     hash_pw('Dpa#2026'),     'DPA Tester',     'dpa'),
+            ('kaprodi.test@sisip.test', hash_pw('Kaprodi#2026'), 'Kaprodi Tester', 'kaprodi'),
         ]
-        c.executemany('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', users_data)
-        
+        c.executemany(
+            'INSERT OR IGNORE INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+            demo_users,
+        )
+
     conn.commit()
     conn.close()
 
