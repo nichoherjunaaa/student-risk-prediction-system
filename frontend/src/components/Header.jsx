@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Calendar, Menu, ChevronDown, User, Settings, Users, Shield } from 'lucide-react';
+import { Bell, Menu, ChevronDown, User, Settings, Users, Shield } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const Header = ({ title, subtitle, toggleSidebar }) => {
@@ -8,35 +8,6 @@ const Header = ({ title, subtitle, toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
-
-  // Fungsi untuk mendapatkan Tahun Akademik dan Semester yang dinamis
-  const getAcademicSemester = () => {
-    const now = new Date();
-    const month = now.getMonth() + 1; // 1-12
-    const year = now.getFullYear();
-    
-    // Ganjil: Agustus (8) hingga Januari (1)
-    // Genap: Februari (2) hingga Juli (7)
-    let semester = "Ganjil";
-    let startYear = year;
-    let endYear = year + 1;
-    
-    if (month >= 8) {
-      semester = "Ganjil";
-      startYear = year;
-      endYear = year + 1;
-    } else if (month <= 1) {
-      semester = "Ganjil";
-      startYear = year - 1;
-      endYear = year;
-    } else {
-      semester = "Genap";
-      startYear = year - 1;
-      endYear = year;
-    }
-    
-    return `Semester ${semester} ${startYear}/${endYear}`;
-  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -85,11 +56,6 @@ const Header = ({ title, subtitle, toggleSidebar }) => {
           </div>
           
           <div className="flex items-center space-x-3 ml-auto">
-            <div className="text-sm text-gray-600 font-medium mr-4 flex items-center bg-gray-50 border border-border px-3 py-1.5 rounded-md">
-              <Calendar className="h-4 w-4 mr-2 text-primary" />
-              <span>{getAcademicSemester()}</span>
-            </div>
-
             <button className="p-1.5 text-gray-400 hover:text-primary transition-colors bg-gray-100 rounded-full hover:bg-gray-200">
               <User className="h-5 w-5" />
             </button>
