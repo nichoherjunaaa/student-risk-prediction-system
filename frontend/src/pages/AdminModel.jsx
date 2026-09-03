@@ -8,6 +8,7 @@ import {
   Loader2,
   BarChart2,
   Star,
+  Download,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
@@ -64,6 +65,40 @@ const AdminModel = () => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
       setError("");
+    }
+  };
+
+  // Template data latih: header sheet TRAIN_SEM3 (kolom fitur + kolom Label
+  // target) mengikuti model aktif, terisi 8 baris contoh. Kalau prodi belum
+  // dipilih atau belum punya model, backend memakai model aktif prodi lain.
+  const handleDownloadTrainTemplate = async () => {
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      if (prodi) params.set("prodi", prodi);
+      if (angkatan) params.set("angkatan", angkatan);
+      const qs = params.toString();
+      const response = await axios.get(
+        `/api/template/train${qs ? `?${qs}` : ""}`,
+        { responseType: "blob" },
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `template_latih_${(prodi || "informatika").toLowerCase().replace(/\s+/g, "_")}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      let message = "Gagal mengunduh template data latih.";
+      try {
+        const text = await err.response?.data?.text?.();
+        if (text) message = JSON.parse(text).error || message;
+      } catch {
+        // biarkan pesan bawaan
+      }
+      setError(message);
     }
   };
 
@@ -160,11 +195,19 @@ const AdminModel = () => {
             <h2 className="text-xl font-bold flex items-center gap-2 mb-2">
               <Cpu className="text-primary" /> Pembuatan & Eksperimen Model Baru
             </h2>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-gray-500 mb-4">
               Silakan tentukan Program Studi sasaran, lalu unggah rekap
               spreadsheet berkas akademis historis gabungan untuk melatih
               kecerdasan buatan.
             </p>
+
+            <button
+              type="button"
+              onClick={handleDownloadTrainTemplate}
+              className="mb-6 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary bg-primary/5 border border-primary/20 rounded-lg hover:bg-primary/10 transition"
+            >
+              <Download size={16} /> Unduh Template Data Latih (.xlsx)
+            </button>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div>

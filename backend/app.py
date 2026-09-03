@@ -470,7 +470,20 @@ def _active_model_base(prodi=None):
     return base
 
 
-def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkatan, semester):
+def _risk_label(label_classes, aman):
+    """Pilih nilai kolom Label untuk baris contoh: profil kuat -> kelas 'tidak
+    berisiko', profil lemah -> kelas 'berisiko'. Kelas berisiko dikenali sama
+    seperti di /api/predict (lihat is_risk)."""
+    classes = [str(c) for c in label_classes]
+    risk = next((c for c in classes
+                 if c.upper() == 'SISIP' or 'TIDAK LOLOS' in c.upper()
+                 or c == '1' or 'AT RISK' in c.upper()), classes[0])
+    aman_cls = next((c for c in classes if c != risk), risk)
+    return aman_cls if aman else risk
+
+
+def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkatan, semester,
+                       label_classes=None):
     """Contoh data siap-pakai untuk template, diturunkan dari statistik model itu
     sendiri (scaler.mean_ / scaler.scale_) supaya nilainya berada di rentang yang
     memang pernah dilihat model.
@@ -506,6 +519,8 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
                 row[col] = angkatan
             elif col == 'Semester':
                 row[col] = semester
+            elif col == 'Label' and label_classes is not None:
+                row[col] = _risk_label(label_classes, aman)
             elif col.startswith('IPK'):
                 # Hanya untuk laporan; model tidak memakai kolom ini.
                 row[col] = round(rng.uniform(3.00, 3.70), 2) if aman else round(rng.uniform(1.60, 2.30), 2)
@@ -532,6 +547,62 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
     return rows
 
 
+class _TemplateError(Exception):
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.status = status
+
+
+def _load_template_model(prodi_param):
+    """Muat artefak model aktif untuk membangun template (fitur, encoder, scaler,
+    kelas label). Jatuh ke model aktif prodi lain bila prodi yang diminta belum
+    punya, supaya tombol unduh template selalu berfungsi."""
+    import joblib
+
+    base, resolved_prodi = _active_model_info(prodi_param or TEMPLATE_DEFAULT_PRODI)
+    if not base:
+        base, resolved_prodi = _active_model_info(None)
+    if not base:
+        raise _TemplateError("Belum ada model aktif sama sekali. Latih dan aktifkan "
+                             "model terlebih dahulu dari tabel di bawah.")
+
+    try:
+        scaler = joblib.load(f"{base}_scaler.pkl")
+        encoders = joblib.load(f"{base}_encoders.pkl")
+        try:
+            label_classes = list(joblib.load(f"{base}_ley.pkl").classes_)
+        except Exception:
+            label_classes = ['SISIP', 'TIDAK SISIP']
+    except Exception as load_err:
+        raise _TemplateError(f"Gagal membaca kolom dari model aktif: {load_err}", 500)
+
+    feature_cols = [str(c) for c in getattr(scaler, 'feature_names_in_', [])]
+    if not feature_cols:
+        raise _TemplateError("Model aktif tidak menyimpan nama kolom fitur, template "
+                             "tidak dapat dibuat. Lakukan training ulang.")
+
+    prodi_label = prodi_param or resolved_prodi or TEMPLATE_DEFAULT_PRODI
+    model_prodi_label = resolved_prodi or prodi_label
+    return {
+        'feature_cols': feature_cols, 'encoders': encoders, 'scaler': scaler,
+        'label_classes': label_classes, 'prodi_label': prodi_label,
+        'model_prodi_label': model_prodi_label,
+    }
+
+
+def _template_xlsx_response(df, sheet_name, download_name):
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
+    buf.seek(0)
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=download_name,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+
+
 @app.route('/api/template/predict', methods=['GET'])
 @app.route('/api/template', methods=['GET'])
 @require_auth
@@ -540,56 +611,55 @@ def download_predict_template():
     data. Feature columns are taken from the active model's scaler so the header
     matches exactly what that model expects; falls back to a default prodi/model so
     the button always works even before Program Studi is chosen on the page."""
-    import joblib
-
     prodi_param = request.args.get('prodi') or None
     angkatan_param = request.args.get('angkatan') or TEMPLATE_DEFAULT_ANGKATAN
     semester_param = request.args.get('semester') or TEMPLATE_DEFAULT_SEMESTER
 
-    base, resolved_prodi = _active_model_info(prodi_param or TEMPLATE_DEFAULT_PRODI)
-    if not base:
-        # Prodi yang diminta/dipilih belum punya model aktif -> pakai model aktif
-        # apa saja yang tersedia supaya tombol tetap berfungsi, dan beri tahu di
-        # sheet Petunjuk bahwa contohnya untuk prodi lain.
-        base, resolved_prodi = _active_model_info(None)
-    if not base:
-        return jsonify({'error': "Belum ada model aktif sama sekali. Hubungi Admin untuk "
-                                 "melatih dan mengaktifkan model terlebih dahulu."}), 400
-
-    prodi_label = prodi_param or resolved_prodi or TEMPLATE_DEFAULT_PRODI
-    model_prodi_label = resolved_prodi or prodi_label
-
-    feature_cols = []
-    encoders = {}
     try:
-        scaler = joblib.load(f"{base}_scaler.pkl")
-        encoders = joblib.load(f"{base}_encoders.pkl")
-        if hasattr(scaler, 'feature_names_in_'):
-            feature_cols = [str(c) for c in scaler.feature_names_in_]
-    except Exception as load_err:
-        return jsonify({'error': f"Gagal membaca kolom dari model aktif: {load_err}"}), 500
+        m = _load_template_model(prodi_param)
+    except _TemplateError as err:
+        return jsonify({'error': str(err)}), err.status
 
-    if not feature_cols:
-        return jsonify({'error': "Model aktif tidak menyimpan nama kolom fitur, "
-                                 "template tidak dapat dibuat. Lakukan training ulang dari menu Admin."}), 400
-
-    cols = TEMPLATE_IDENTITY_COLS + [c for c in feature_cols if c not in TEMPLATE_IDENTITY_COLS]
-
-    rows = _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label,
-                              angkatan_param, semester_param)
+    cols = TEMPLATE_IDENTITY_COLS + [c for c in m['feature_cols'] if c not in TEMPLATE_IDENTITY_COLS]
+    rows = _build_sample_rows(cols, m['feature_cols'], m['encoders'], m['scaler'],
+                              m['prodi_label'], angkatan_param, semester_param)
     df = pd.DataFrame(rows, columns=cols)
 
-    buf = io.BytesIO()
-    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='TEST_SEM3')
-    buf.seek(0)
+    return _template_xlsx_response(
+        df, 'TEST_SEM3',
+        f'template_prediksi_{m["model_prodi_label"].lower().replace(" ", "_")}.xlsx')
 
-    return send_file(
-        buf,
-        as_attachment=True,
-        download_name=f'template_prediksi_{model_prodi_label.lower().replace(" ", "_")}.xlsx',
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    )
+
+# Kolom ekor sheet TRAIN_SEM3 (setelah kolom fitur). Angkatan/IPK/SKS hanya untuk
+# pelaporan — pipeline training membuangnya; Label adalah target yang wajib diisi.
+TEMPLATE_TRAIN_TAIL_COLS = ['Angkatan', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3', 'Label']
+
+
+@app.route('/api/template/train', methods=['GET'])
+@require_role('admin')
+def download_train_template():
+    """Excel template untuk mengunggah data latih historis di menu Master Model.
+    Sama seperti template prediksi, tetapi memakai nama sheet TRAIN_SEM3 dan
+    menambahkan kolom Label (target) yang sudah terisi contoh sesuai gradasi
+    profil tiap baris."""
+    prodi_param = request.args.get('prodi') or None
+    angkatan_param = request.args.get('angkatan') or TEMPLATE_DEFAULT_ANGKATAN
+
+    try:
+        m = _load_template_model(prodi_param)
+    except _TemplateError as err:
+        return jsonify({'error': str(err)}), err.status
+
+    lead = ['NIM', 'Nomor PMB']
+    cols = lead + [c for c in m['feature_cols'] if c not in lead] + TEMPLATE_TRAIN_TAIL_COLS
+    rows = _build_sample_rows(cols, m['feature_cols'], m['encoders'], m['scaler'],
+                              m['prodi_label'], angkatan_param, TEMPLATE_DEFAULT_SEMESTER,
+                              label_classes=m['label_classes'])
+    df = pd.DataFrame(rows, columns=cols)
+
+    return _template_xlsx_response(
+        df, 'TRAIN_SEM3',
+        f'template_latih_{m["model_prodi_label"].lower().replace(" ", "_")}.xlsx')
 
 
 @app.route('/api/preview', methods=['POST'])
