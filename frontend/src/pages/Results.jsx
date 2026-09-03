@@ -190,6 +190,22 @@ const Results = () => {
         />
         
         <div className="flex-1 overflow-y-auto p-8">
+          {/* Nilai yang tidak dikenal model diganti otomatis saat prediksi —
+              tanpa pemberitahuan ini, hasil bisa melenceng tanpa terlihat. */}
+          {Array.isArray(data.warnings) && data.warnings.length > 0 && (
+            <div className="max-w-7xl mx-auto mb-6">
+              {data.warnings.map((w, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 text-sm"
+                >
+                  <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
+                  <span>{w}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 max-w-7xl mx-auto">
             <div className="bg-surface rounded-2xl p-6 border border-border shadow-sm flex items-center">
               <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mr-4 border border-blue-100">

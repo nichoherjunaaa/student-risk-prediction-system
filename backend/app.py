@@ -368,16 +368,28 @@ def _active_model_base(prodi=None):
     return base
 
 
-def _build_sample_rows(cols, feature_cols, encoders, prodi_label, angkatan, semester):
-    """Contoh data siap-pakai untuk template: separuh mahasiswa profil 'aman'
-    (IPK/nilai bagus) dan separuh 'berisiko' (IPK rendah, banyak nilai D/E), supaya
-    template tidak diunduh kosong dan bisa langsung dicoba untuk prediksi."""
+def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkatan, semester):
+    """Contoh data siap-pakai untuk template, diturunkan dari statistik model itu
+    sendiri (scaler.mean_ / scaler.scale_) supaya nilainya berada di rentang yang
+    memang pernah dilihat model.
+
+    Menebak rentang sendiri (mis. nilai tes 0-100) berbahaya: pada dataset ini
+    kolom nilai tes ternyata berskala 0-10, sehingga angka karangan 35-90 menjadi
+    +16..+28 sigma dan mendorong SEMUA prediksi ke satu kelas. Setiap baris digeser
+    k*sigma dari rata-rata: k negatif = profil kuat, k positif = profil lemah."""
     rng = random.Random(20230903)  # seed tetap: isi contoh sama setiap diunduh
-    numeric_cols = [c for c in feature_cols if c not in encoders]
+    means = getattr(scaler, 'mean_', None)
+    scales = getattr(scaler, 'scale_', None)
+    feat_index = {c: i for i, c in enumerate(feature_cols)}
+
+    # Gradasi profil: separuh di bawah rata-rata (lebih kuat), separuh di atas
+    # (lebih lemah), supaya contoh tidak seragam pada satu kelas prediksi.
+    profil_k = [-1.2, -0.8, -0.4, 0.0, 0.6, 1.0, 1.4, 1.8]
 
     rows = []
     for idx, nama in enumerate(_SAMPLE_NAMES, start=1):
-        aman = (idx % 2 == 1)
+        k = profil_k[(idx - 1) % len(profil_k)]
+        aman = k <= 0
         row = {}
         for col in cols:
             if col == 'NIM':
@@ -393,22 +405,25 @@ def _build_sample_rows(cols, feature_cols, encoders, prodi_label, angkatan, seme
             elif col == 'Semester':
                 row[col] = semester
             elif col.startswith('IPK'):
+                # Hanya untuk laporan; model tidak memakai kolom ini.
                 row[col] = round(rng.uniform(3.00, 3.70), 2) if aman else round(rng.uniform(1.60, 2.30), 2)
             elif col == 'Total SKS 3':
                 row[col] = rng.choice([54, 57, 60]) if aman else rng.choice([30, 36, 42])
-            elif col in TEMPLATE_BIODATA_COLS and col in encoders:
+            elif col in feat_index and means is not None and scales is not None:
+                i = feat_index[col]
+                target = float(means[i]) + k * float(scales[i])
+                if col in encoders:
+                    classes = list(encoders[col].classes_)
+                    if not classes:
+                        row[col] = ''
+                    else:
+                        j = int(round(min(max(target, 0), len(classes) - 1)))
+                        row[col] = str(classes[j])
+                else:
+                    row[col] = round(max(target, 0.0), 2)
+            elif col in encoders:
                 classes = list(encoders[col].classes_)
                 row[col] = str(classes[idx % len(classes)]) if classes else ''
-            elif col in encoders:
-                classes = set(str(c) for c in encoders[col].classes_)
-                grade_pool = _GRADE_POOL_AMAN if aman else _GRADE_POOL_BERISIKO
-                usable_pool = [g for g in grade_pool if g in classes] or list(classes & _GRADE_LETTERS) or list(classes)
-                fail_pool = [g for g in _GRADE_POOL_GAGAL if g in classes] or usable_pool
-                use_fail = rng.random() < (0.05 if aman else 0.55)
-                pool = fail_pool if use_fail else usable_pool
-                row[col] = rng.choice(pool) if pool else ''
-            elif col in numeric_cols:
-                row[col] = round(rng.uniform(70, 90) if aman else rng.uniform(35, 65), 2)
             else:
                 row[col] = 0
         rows.append(row)
@@ -457,7 +472,8 @@ def download_predict_template():
 
     cols = TEMPLATE_IDENTITY_COLS + [c for c in feature_cols if c not in TEMPLATE_IDENTITY_COLS]
 
-    rows = _build_sample_rows(cols, feature_cols, encoders, prodi_label, angkatan_param, semester_param)
+    rows = _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label,
+                              angkatan_param, semester_param)
     df = pd.DataFrame(rows, columns=cols)
 
     mismatch_note = ''
@@ -465,23 +481,51 @@ def download_predict_template():
         mismatch_note = (f" PERHATIAN: belum ada model aktif untuk prodi {prodi_param}, "
                          f"jadi contoh ini memakai model prodi {resolved_prodi}.")
 
+    # Daftar nilai yang benar-benar dikenal model per kolom. Tanpa ini pengguna
+    # menebak huruf mutu (mis. 'B+') yang tidak ada di kolom tersebut, lalu
+    # diam-diam diganti jadi kelas pertama dan hasil prediksi ikut melenceng.
+    valid_rows = []
+    for col in cols:
+        if col in encoders:
+            classes = [str(x) for x in encoders[col].classes_]
+            valid_rows.append({
+                'Kolom': col,
+                'Jenis': 'Pilihan (teks)',
+                'Nilai yang diterima': ', '.join(classes[:25]) + ('...' if len(classes) > 25 else ''),
+            })
+        elif col in feature_cols:
+            i = feature_cols.index(col)
+            rentang = ''
+            if getattr(scaler, 'mean_', None) is not None and getattr(scaler, 'scale_', None) is not None:
+                m, s = float(scaler.mean_[i]), float(scaler.scale_[i])
+                rentang = f"angka, rata-rata data latih {m:.2f} (sebaran ±{s:.2f})"
+            valid_rows.append({'Kolom': col, 'Jenis': 'Angka', 'Nilai yang diterima': rentang or 'angka'})
+        else:
+            valid_rows.append({'Kolom': col, 'Jenis': 'Identitas (tidak dihitung model)',
+                               'Nilai yang diterima': 'bebas'})
+
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='TEST_SEM3')
         note = pd.DataFrame({'Petunjuk': [
             f"Sheet TEST_SEM3 SUDAH DIISI {len(rows)} contoh mahasiswa: Prodi {model_prodi_label}, "
             f"Angkatan {angkatan_param}, Semester {semester_param}." + mismatch_note,
+            'Nilai contoh diambil dari sebaran data latih model aktif, dengan gradasi dari profil '
+            'kuat sampai lemah, supaya hasil prediksinya bervariasi (bukan semua satu kelas).',
             'Ganti NIM, Nama, dan nilai dengan data mahasiswa asli sebelum diunggah untuk produksi '
             '(baris contoh boleh dihapus).',
             'Kolom Prodi, Angkatan, dan Semester pada file INI harus sama persis dengan pilihan '
             'dropdown Program Studi/Angkatan/Semester di halaman Unggah Data — kalau beda, sistem '
             'akan menolak dan menyebutkan bagian mana yang tidak cocok.',
             'Jangan ubah, hapus, atau menambah nama kolom / nama sheet (TEST_SEM3).',
-            'Kolom nilai mata kuliah diisi huruf mutu (A, A-, B+, ... , D, E, T).',
-            'Kolom NIM, Nomor PMB, Nama, Prodi, Semester, IPK, dan Total SKS hanya untuk laporan, '
-            'tidak ikut dihitung oleh model.',
+            'PENTING: nilai yang diterima BERBEDA per kolom — lihat sheet NILAI_VALID. Nilai di luar '
+            'daftar itu akan diganti otomatis oleh sistem ke pilihan pertama kolom tersebut, dan '
+            'hasil prediksi bisa menyimpang tanpa terlihat.',
+            'Kolom NIM, Nomor PMB, Nama, Prodi, Semester, IPK 1-3, dan Total SKS 3 hanya untuk '
+            'laporan — model TIDAK memakai kolom ini untuk menghitung prediksi.',
         ]})
         note.to_excel(writer, index=False, sheet_name='PETUNJUK')
+        pd.DataFrame(valid_rows).to_excel(writer, index=False, sheet_name='NILAI_VALID')
     buf.seek(0)
 
     return send_file(
@@ -949,12 +993,27 @@ def predict():
         drop_cols = TEMPLATE_IDENTITY_COLS + ['Label']
         df = df.drop(columns=[col for col in drop_cols if col in df.columns])
 
+    unknown_report = []
     try:
-        # Proses encoding dinamis menggunakan kamus fit prodi terkait
+        # Proses encoding dinamis menggunakan kamus fit prodi terkait.
+        # Nilai yang tidak dikenal model diganti ke kelas pertama — itu bisa
+        # membelokkan hasil tanpa terlihat, jadi dicatat dan dilaporkan balik.
         for col in active_encoders:
             if col in df.columns:
                 le = active_encoders[col]
-                df[col] = df[col].astype(str).map(lambda s: s if s in le.classes_ else le.classes_[0])
+                known = set(str(x) for x in le.classes_)
+                as_str = df[col].astype(str)
+                unknown_mask = ~as_str.isin(known)
+                n_unknown = int(unknown_mask.sum())
+                if n_unknown:
+                    contoh = sorted(set(as_str[unknown_mask]))[:3]
+                    unknown_report.append({
+                        'kolom': col,
+                        'jumlah_sel': n_unknown,
+                        'contoh_nilai': contoh,
+                        'diganti_menjadi': str(le.classes_[0]),
+                    })
+                df[col] = as_str.map(lambda s: s if s in known else str(le.classes_[0]))
                 df[col] = le.transform(df[col])
 
         for col in df.columns:
@@ -1103,6 +1162,20 @@ def predict():
     except Exception as db_err:
         return jsonify({'error': f"Prediksi berhasil dihitung tetapi gagal disimpan ke database: {db_err}"}), 500
 
+    warnings = []
+    if unknown_report:
+        total_sel = sum(u['jumlah_sel'] for u in unknown_report)
+        contoh = ', '.join(
+            f"{u['kolom']} ({', '.join(u['contoh_nilai'])} -> {u['diganti_menjadi']})"
+            for u in unknown_report[:5]
+        )
+        warnings.append(
+            f"{total_sel} sel pada {len(unknown_report)} kolom berisi nilai yang tidak dikenal model "
+            f"dan diganti otomatis, sehingga hasil bisa kurang akurat. Contoh: {contoh}"
+            + ('...' if len(unknown_report) > 5 else '')
+            + " Lihat sheet NILAI_VALID pada template untuk daftar nilai yang diterima tiap kolom."
+        )
+
     return jsonify({
         'batch_id': batch_id,
         'batch_name': batch_name,
@@ -1111,7 +1184,8 @@ def predict():
         'safe': safe_count,
         'prodi': prodi,
         'angkatan': angkatan,
-        'results': results
+        'results': results,
+        'warnings': warnings,
     })
 @app.route('/api/history', methods=['GET'])
 def get_history():
