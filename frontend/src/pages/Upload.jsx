@@ -59,22 +59,27 @@ const Upload = () => {
     }
   };
 
-  // Template harus mengikuti kolom model aktif prodi terpilih, jadi prodi wajib diisi
+  // Template selalu bisa diunduh: kalau Program Studi/Angkatan/Semester belum
+  // dipilih, backend memakai contoh default (Informatika, Angkatan 2023, Semester 3).
+  // Isi Prodi/Angkatan/Semester di dalam file harus sama dengan pilihan dropdown di
+  // halaman ini saat prediksi dijalankan — kalau beda, backend akan menyebutkan
+  // bagian mana yang tidak cocok.
   const handleDownloadTemplate = async () => {
-    if (!prodi) {
-      setError("Silakan pilih Program Studi terlebih dahulu untuk mengunduh template.");
-      return;
-    }
     setError("");
     try {
+      const params = new URLSearchParams();
+      if (prodi) params.set("prodi", prodi);
+      if (angkatan) params.set("angkatan", angkatan);
+      if (semester) params.set("semester", semester);
+      const qs = params.toString();
       const response = await axios.get(
-        `/api/template/predict?prodi=${encodeURIComponent(prodi)}`,
+        `/api/template/predict${qs ? `?${qs}` : ""}`,
         { responseType: "blob" },
       );
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.download = `template_prediksi_${prodi.toLowerCase().replace(/\s+/g, "_")}.xlsx`;
+      link.download = `template_prediksi_${(prodi || "informatika").toLowerCase().replace(/\s+/g, "_")}.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -184,17 +189,18 @@ const Upload = () => {
               <p className="text-sm text-gray-500 max-w-2xl">
                 Silakan tentukan parameter filter program studi dan masukkan file
                 rekap nilai mahasiswa untuk dianalisis oleh kecerdasan
-                buatan.
+                buatan. Template Excel sudah berisi contoh data siap pakai —
+                pastikan kolom Prodi/Angkatan/Semester di dalamnya sama dengan
+                pilihan Anda di bawah ini.
               </p>
               <button
                 onClick={handleDownloadTemplate}
-                disabled={!prodi}
                 title={
                   prodi
-                    ? `Unduh template kolom model aktif prodi ${prodi}`
-                    : "Pilih Program Studi terlebih dahulu"
+                    ? `Unduh contoh template untuk prodi ${prodi}`
+                    : "Unduh contoh template (default: Informatika, Angkatan 2023, Semester 3)"
                 }
-                className="px-4 py-2 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition flex items-center gap-2 text-sm whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                className="px-4 py-2 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition flex items-center gap-2 text-sm whitespace-nowrap"
               >
                 Unduh Template Excel
               </button>

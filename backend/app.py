@@ -302,49 +302,150 @@ TEMPLATE_IDENTITY_COLS = [
     'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3',
 ]
 
+# Kolom biodata mahasiswa yang dienkode tapi bukan nilai mata kuliah (dipakai untuk
+# membedakan "isi dengan nama provinsi/sekolah" vs "isi dengan huruf mutu" saat
+# membuat contoh data template).
+TEMPLATE_BIODATA_COLS = [
+    'Propinsi Asal Lahir', 'Kabupaten Asal Lahir', 'Propinsi Asal Sekolah',
+    'Kabupaten Asal Sekolah', 'Nama Sekolah', 'Jurusan Sekolah', 'Profil Sekolah',
+    'Jalur Pendaftaran',
+]
 
-def _active_model_base(prodi=None):
-    """Path prefix (without .keras) of an active model, or None."""
+TEMPLATE_DEFAULT_PRODI = 'Informatika'
+TEMPLATE_DEFAULT_ANGKATAN = 2023
+TEMPLATE_DEFAULT_SEMESTER = 3
+
+_GRADE_LETTERS = {'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E', 'T'}
+_GRADE_POOL_AMAN = ['A', 'A-', 'B+', 'B', 'B-']
+_GRADE_POOL_BERISIKO = ['C', 'C-', 'D', 'D-', 'E']
+_GRADE_POOL_GAGAL = ['D', 'D-', 'D+', 'E']
+
+_SAMPLE_NAMES = [
+    "Ahmad Fauzi Ramadhan", "Siti Nur Aisyah", "Budi Santoso", "Dewi Lestari",
+    "Muhammad Rizky Pratama", "Putri Ayu Wulandari", "Andi Setiawan", "Rina Marlina",
+]
+
+
+def _norm_str(v):
+    """Normalisasi nilai supaya '2024', '2024.0', 2024, dan ' 2024 ' dianggap sama.
+    Tanpa ini, kolom Angkatan/Semester yang punya sel kosong berubah jadi float oleh
+    pandas ('2024.0') dan tidak akan pernah cocok dengan pilihan dropdown ('2024')."""
+    s = str(v).strip()
+    try:
+        f = float(s)
+        return str(int(f)) if f.is_integer() else str(f)
+    except (TypeError, ValueError):
+        return s
+
+
+def _match_series(series, value):
+    return series.astype(str).map(_norm_str) == _norm_str(value)
+
+
+def _active_model_info(prodi=None):
+    """(base_path, prodi_yang_sebenarnya) dari model aktif, atau (None, None)."""
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         if prodi:
-            c.execute("SELECT file_path FROM model_registry WHERE is_active = 1 AND prodi = ? LIMIT 1", (prodi,))
+            c.execute("SELECT file_path, prodi FROM model_registry WHERE is_active = 1 AND prodi = ? LIMIT 1", (prodi,))
         else:
-            c.execute("SELECT file_path FROM model_registry WHERE is_active = 1 ORDER BY id DESC LIMIT 1")
+            c.execute("SELECT file_path, prodi FROM model_registry WHERE is_active = 1 ORDER BY id DESC LIMIT 1")
         row = c.fetchone()
         conn.close()
     except Exception:
-        return None
+        return None, None
     if not row:
-        return None
-    return resolve_model_path(row[0])[:-len('.keras')] if row[0].endswith('.keras') else resolve_model_path(row[0])
+        return None, None
+    path, prodi_db = row
+    base = resolve_model_path(path)[:-len('.keras')] if path.endswith('.keras') else resolve_model_path(path)
+    return base, prodi_db
+
+
+def _active_model_base(prodi=None):
+    """Path prefix (without .keras) of an active model, or None."""
+    base, _ = _active_model_info(prodi)
+    return base
+
+
+def _build_sample_rows(cols, feature_cols, encoders, prodi_label, angkatan, semester):
+    """Contoh data siap-pakai untuk template: separuh mahasiswa profil 'aman'
+    (IPK/nilai bagus) dan separuh 'berisiko' (IPK rendah, banyak nilai D/E), supaya
+    template tidak diunduh kosong dan bisa langsung dicoba untuk prediksi."""
+    rng = random.Random(20230903)  # seed tetap: isi contoh sama setiap diunduh
+    numeric_cols = [c for c in feature_cols if c not in encoders]
+
+    rows = []
+    for idx, nama in enumerate(_SAMPLE_NAMES, start=1):
+        aman = (idx % 2 == 1)
+        row = {}
+        for col in cols:
+            if col == 'NIM':
+                row[col] = f"{angkatan}{idx:06d}"
+            elif col == 'Nomor PMB':
+                row[col] = f"PMB-{angkatan}-{idx:04d}"
+            elif col == 'Nama':
+                row[col] = nama
+            elif col == 'Prodi':
+                row[col] = prodi_label
+            elif col == 'Angkatan':
+                row[col] = angkatan
+            elif col == 'Semester':
+                row[col] = semester
+            elif col.startswith('IPK'):
+                row[col] = round(rng.uniform(3.00, 3.70), 2) if aman else round(rng.uniform(1.60, 2.30), 2)
+            elif col == 'Total SKS 3':
+                row[col] = rng.choice([54, 57, 60]) if aman else rng.choice([30, 36, 42])
+            elif col in TEMPLATE_BIODATA_COLS and col in encoders:
+                classes = list(encoders[col].classes_)
+                row[col] = str(classes[idx % len(classes)]) if classes else ''
+            elif col in encoders:
+                classes = set(str(c) for c in encoders[col].classes_)
+                grade_pool = _GRADE_POOL_AMAN if aman else _GRADE_POOL_BERISIKO
+                usable_pool = [g for g in grade_pool if g in classes] or list(classes & _GRADE_LETTERS) or list(classes)
+                fail_pool = [g for g in _GRADE_POOL_GAGAL if g in classes] or usable_pool
+                use_fail = rng.random() < (0.05 if aman else 0.55)
+                pool = fail_pool if use_fail else usable_pool
+                row[col] = rng.choice(pool) if pool else ''
+            elif col in numeric_cols:
+                row[col] = round(rng.uniform(70, 90) if aman else rng.uniform(35, 65), 2)
+            else:
+                row[col] = 0
+        rows.append(row)
+    return rows
 
 
 @app.route('/api/template/predict', methods=['GET'])
 @app.route('/api/template', methods=['GET'])
 def download_predict_template():
-    """Excel template for batch prediction upload. When an active model exists,
-    the feature columns are taken from that model's scaler/encoders so the header
-    matches exactly what the model expects."""
+    """Excel template for batch prediction upload, already filled with usable example
+    data. Feature columns are taken from the active model's scaler so the header
+    matches exactly what that model expects; falls back to a default prodi/model so
+    the button always works even before Program Studi is chosen on the page."""
     import joblib
 
-    prodi = request.args.get('prodi') or None
-    feature_cols = []
+    prodi_param = request.args.get('prodi') or None
+    angkatan_param = request.args.get('angkatan') or TEMPLATE_DEFAULT_ANGKATAN
+    semester_param = request.args.get('semester') or TEMPLATE_DEFAULT_SEMESTER
 
-    # Tanpa prodi, model aktif yang terambil belum tentu model yang dipakai saat
-    # prediksi, sehingga header template bisa tidak cocok.
-    if not prodi:
-        return jsonify({'error': "Pilih Program Studi terlebih dahulu. Kolom template mengikuti "
-                                 "model aktif prodi tersebut."}), 400
-
-    base = _active_model_base(prodi)
+    base, resolved_prodi = _active_model_info(prodi_param or TEMPLATE_DEFAULT_PRODI)
     if not base:
-        return jsonify({'error': f"Belum ada model aktif{f' untuk prodi {prodi}' if prodi else ''}. "
-                                 "Template hanya dapat dibuat setelah Admin mengaktifkan model, "
-                                 "karena kolomnya harus mengikuti model tersebut."}), 400
+        # Prodi yang diminta/dipilih belum punya model aktif -> pakai model aktif
+        # apa saja yang tersedia supaya tombol tetap berfungsi, dan beri tahu di
+        # sheet Petunjuk bahwa contohnya untuk prodi lain.
+        base, resolved_prodi = _active_model_info(None)
+    if not base:
+        return jsonify({'error': "Belum ada model aktif sama sekali. Hubungi Admin untuk "
+                                 "melatih dan mengaktifkan model terlebih dahulu."}), 400
+
+    prodi_label = prodi_param or resolved_prodi or TEMPLATE_DEFAULT_PRODI
+    model_prodi_label = resolved_prodi or prodi_label
+
+    feature_cols = []
+    encoders = {}
     try:
         scaler = joblib.load(f"{base}_scaler.pkl")
+        encoders = joblib.load(f"{base}_encoders.pkl")
         if hasattr(scaler, 'feature_names_in_'):
             feature_cols = [str(c) for c in scaler.feature_names_in_]
     except Exception as load_err:
@@ -356,21 +457,29 @@ def download_predict_template():
 
     cols = TEMPLATE_IDENTITY_COLS + [c for c in feature_cols if c not in TEMPLATE_IDENTITY_COLS]
 
-    # Hanya header, tanpa baris contoh: baris contoh yang lupa dihapus akan ikut
-    # diprediksi, atau justru membuang seluruh data karena filter angkatan/semester.
-    df = pd.DataFrame(columns=cols)
+    rows = _build_sample_rows(cols, feature_cols, encoders, prodi_label, angkatan_param, semester_param)
+    df = pd.DataFrame(rows, columns=cols)
+
+    mismatch_note = ''
+    if prodi_param and resolved_prodi and prodi_param.strip().lower() != resolved_prodi.strip().lower():
+        mismatch_note = (f" PERHATIAN: belum ada model aktif untuk prodi {prodi_param}, "
+                         f"jadi contoh ini memakai model prodi {resolved_prodi}.")
 
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='TEST_SEM3')
         note = pd.DataFrame({'Petunjuk': [
-            'Isi baris di sheet TEST_SEM3 dengan data mahasiswa semester berjalan.',
-            'Jangan ubah, hapus, atau menambah kolom / nama sheet (TEST_SEM3).',
+            f"Sheet TEST_SEM3 SUDAH DIISI {len(rows)} contoh mahasiswa: Prodi {model_prodi_label}, "
+            f"Angkatan {angkatan_param}, Semester {semester_param}." + mismatch_note,
+            'Ganti NIM, Nama, dan nilai dengan data mahasiswa asli sebelum diunggah untuk produksi '
+            '(baris contoh boleh dihapus).',
+            'Kolom Prodi, Angkatan, dan Semester pada file INI harus sama persis dengan pilihan '
+            'dropdown Program Studi/Angkatan/Semester di halaman Unggah Data — kalau beda, sistem '
+            'akan menolak dan menyebutkan bagian mana yang tidak cocok.',
+            'Jangan ubah, hapus, atau menambah nama kolom / nama sheet (TEST_SEM3).',
             'Kolom nilai mata kuliah diisi huruf mutu (A, A-, B+, ... , D, E, T).',
-            'Kolom Angkatan, Prodi, dan Semester harus sama dengan filter yang dipilih saat prediksi.',
             'Kolom NIM, Nomor PMB, Nama, Prodi, Semester, IPK, dan Total SKS hanya untuk laporan, '
             'tidak ikut dihitung oleh model.',
-            'Header kolom mengikuti model aktif' + (f' untuk prodi {prodi}.' if prodi else '.'),
         ]})
         note.to_excel(writer, index=False, sheet_name='PETUNJUK')
     buf.seek(0)
@@ -378,7 +487,7 @@ def download_predict_template():
     return send_file(
         buf,
         as_attachment=True,
-        download_name='template_prediksi_sisip.xlsx',
+        download_name=f'template_prediksi_{model_prodi_label.lower().replace(" ", "_")}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )
 
@@ -405,14 +514,15 @@ def preview_data():
             
         df = pd.read_excel(excel_file, sheet_name=sheet_to_read)
         
-        # Filter by Angkatan, Prodi, Semester if columns exist
+        # Filter by Angkatan, Prodi, Semester if columns exist (dinormalkan agar
+        # konsisten dengan /api/predict, lihat _match_series)
         if 'Angkatan' in df.columns and angkatan != 'Unknown' and angkatan != '':
-            df = df[df['Angkatan'].astype(str) == str(angkatan)]
+            df = df[_match_series(df['Angkatan'], angkatan)]
         if 'Prodi' in df.columns and prodi != 'Unknown' and prodi != '':
             df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
         if 'Semester' in df.columns and semester != 'Unknown' and semester != '':
-            df = df[df['Semester'].astype(str) == str(semester)]
-            
+            df = df[_match_series(df['Semester'], semester)]
+
         # Convert first 10 rows to dict for preview
         preview_data = df.head(10).replace({np.nan: None}).to_dict(orient='records')
         columns = df.columns.tolist()
@@ -782,18 +892,43 @@ def predict():
         excel_file = pd.ExcelFile(file)
         sheet_to_read = 'TEST_SEM3' if 'TEST_SEM3' in excel_file.sheet_names else 0
         df = pd.read_excel(excel_file, sheet_name=sheet_to_read)
-        
-        # Filter by Angkatan, Prodi, and Semester jika kolom tersedia di Excel
+        df_before_filter = df
+
+        # Filter by Angkatan, Prodi, and Semester jika kolom tersedia di Excel.
+        # _match_series menormalkan tipe (mis. '2024' vs '2024.0') agar tidak
+        # meleset gara-gara sel kosong di kolom lain membuat kolom ini jadi float.
         if 'Angkatan' in df.columns and angkatan != 'Unknown' and angkatan != '':
-            df = df[df['Angkatan'].astype(str) == str(angkatan)]
+            df = df[_match_series(df['Angkatan'], angkatan)]
         if 'Prodi' in df.columns and prodi != 'Unknown' and prodi != '':
             df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
         if 'Semester' in df.columns and semester != 'Unknown' and semester != '':
-            df = df[df['Semester'].astype(str) == str(semester)]
-            
+            df = df[_match_series(df['Semester'], semester)]
+
         if len(df) == 0:
-            return jsonify({'error': f"Tidak ada data uji (TEST) untuk kriteria yang dipilih."}), 400
-            
+            # Jelaskan persis bagian mana yang tidak cocok, dibanding isi berkas,
+            # supaya bukan lagi pesan generik "tidak ada data uji".
+            reasons = []
+            if 'Prodi' in df_before_filter.columns and prodi not in ('Unknown', ''):
+                file_vals = sorted(set(str(v) for v in df_before_filter['Prodi'].dropna().unique()))
+                if file_vals and not any(str(prodi).lower() in v.lower() for v in file_vals):
+                    reasons.append(f"Program Studi tidak sesuai — berkas berisi: {', '.join(file_vals)}, "
+                                   f"sedangkan yang dipilih di halaman ini: {prodi}.")
+            if 'Angkatan' in df_before_filter.columns and angkatan not in ('Unknown', ''):
+                file_vals = sorted(set(_norm_str(v) for v in df_before_filter['Angkatan'].dropna().unique()))
+                if file_vals and _norm_str(angkatan) not in file_vals:
+                    reasons.append(f"Angkatan tidak sesuai — berkas berisi: {', '.join(file_vals)}, "
+                                   f"sedangkan yang dipilih: {angkatan}.")
+            if 'Semester' in df_before_filter.columns and semester not in ('Unknown', ''):
+                file_vals = sorted(set(_norm_str(v) for v in df_before_filter['Semester'].dropna().unique()))
+                if file_vals and _norm_str(semester) not in file_vals:
+                    reasons.append(f"Semester tidak sesuai — berkas berisi: {', '.join(file_vals)}, "
+                                   f"sedangkan yang dipilih: {semester}.")
+            if not reasons:
+                reasons.append("Tidak ada baris yang cocok dengan kombinasi Program Studi/Angkatan/"
+                                "Semester yang dipilih di halaman ini.")
+            return jsonify({'error': "Berkas tidak sesuai dengan pilihan Program Studi/Angkatan/Semester. "
+                                     + " ".join(reasons)}), 400
+
         original_df = df.copy()
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -854,92 +989,119 @@ def predict():
     except Exception as proc_err:
         return jsonify({'error': f"Gagal memproses isi berkas untuk prodi {prodi}: {proc_err}"}), 400
     
-    results = []
-    at_risk_count = 0
-    safe_count = 0
-    
-    for i, label in enumerate(predicted_labels):
-        nim = original_df['NIM'].iloc[i] if 'NIM' in original_df.columns else f'Unknown-{i}'
-        pmb = original_df['Nomor Pendaftaran'].iloc[i] if 'Nomor Pendaftaran' in original_df.columns else (original_df['Nomor PMB'].iloc[i] if 'Nomor PMB' in original_df.columns else f'Unknown-{i}')
-        nama = original_df['Nama'].iloc[i] if 'Nama' in original_df.columns else (original_df['Nama Mahasiswa'].iloc[i] if 'Nama Mahasiswa' in original_df.columns else str(nim))
-        prodi_val = original_df['Prodi'].iloc[i] if 'Prodi' in original_df.columns else prodi
-        
-        # Get grades and find failed/passed subjects
-        failed_subjects = []
-        passed_subjects = []
-        sks_passed = 0
-        sks_failed = 0
-        for col in original_df.columns:
-            if col not in ['NIM', 'Nomor Pendaftaran', 'Nomor PMB', 'Nama', 'Nama Mahasiswa', 'Prodi', 'Angkatan', 'Semester', 'Label', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3'] and not pd.isna(original_df[col].iloc[i]):
-                val = str(original_df[col].iloc[i]).strip().upper()
-                # Assumption: 3 SKS per subject since actual SKS isn't in column names
-                sks_matkul = 3
-                if val in ['D', 'E', 'T', 'D+', 'D-']:
-                    failed_subjects.append({'matkul': col, 'nilai': val, 'sks': sks_matkul})
-                    sks_failed += sks_matkul
-                elif val in ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-']:
-                    passed_subjects.append({'matkul': col, 'nilai': val, 'sks': sks_matkul})
-                    sks_passed += sks_matkul
+    def _safe_float(series_name, i):
+        """IPK bisa berisi teks/kosong pada berkas hasil edit manual; jangan sampai
+        satu sel rusak menjatuhkan seluruh permintaan dengan 500."""
+        if series_name not in original_df.columns:
+            return 0.0
+        val = original_df[series_name].iloc[i]
+        try:
+            return float(val) if not pd.isna(val) else 0.0
+        except (TypeError, ValueError):
+            return 0.0
 
-        details_dict = {
-            'nama': str(nama),
-            'prodi': str(prodi_val),
-            'ipk1': float(original_df['IPK 1'].iloc[i]) if 'IPK 1' in original_df.columns and not pd.isna(original_df['IPK 1'].iloc[i]) else 0.0,
-            'ipk2': float(original_df['IPK 2'].iloc[i]) if 'IPK 2' in original_df.columns and not pd.isna(original_df['IPK 2'].iloc[i]) else 0.0,
-            'ipk3': float(original_df['IPK 3'].iloc[i]) if 'IPK 3' in original_df.columns and not pd.isna(original_df['IPK 3'].iloc[i]) else 0.0,
-            'sks3': int(original_df['Total SKS 3'].iloc[i]) if 'Total SKS 3' in original_df.columns and not pd.isna(original_df['Total SKS 3'].iloc[i]) else 0,
-            'failed_subjects': failed_subjects,
-            'passed_subjects': passed_subjects,
-            'sks_passed': sks_passed,
-            'sks_failed': sks_failed
-        }
+    def _safe_int(series_name, i):
+        if series_name not in original_df.columns:
+            return 0
+        val = original_df[series_name].iloc[i]
+        try:
+            return int(float(val)) if not pd.isna(val) else 0
+        except (TypeError, ValueError):
+            return 0
 
-        label_str = str(label).strip().upper()
-        is_risk = (label_str == 'SISIP' or 'TIDAK LOLOS' in label_str or label_str == '1' or 'AT RISK' in label_str)
-        
-        if is_risk:
-            at_risk_count += 1
-        else:
-            safe_count += 1
-            
-        import json
-        results.append({
-            'nim': str(nim),
-            'pmb': str(pmb),
-            'prediction': str(label),
-            'isRisk': is_risk,
-            'details': json.dumps(details_dict),
-            'nama': str(nama),
-            'prodi': str(prodi_val)
-        })
+    import json
 
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    date_now = datetime.datetime.now().strftime("%d %b %Y, %H:%M")
-    batch_name = f"#BATCH-{datetime.datetime.now().strftime('%y%m%d%H%M')}"
-    total_records = len(results)
+    try:
+        results = []
+        at_risk_count = 0
+        safe_count = 0
 
-    c.execute('SELECT id FROM batches WHERE prodi = ? AND angkatan = ?', (prodi, angkatan))
-    existing = c.fetchone()
-    if existing:
-        old_batch_id = existing[0]
-        c.execute('DELETE FROM predictions WHERE batch_id = ?', (old_batch_id,))
-        c.execute('DELETE FROM batches WHERE id = ?', (old_batch_id,))
+        for i, label in enumerate(predicted_labels):
+            nim = original_df['NIM'].iloc[i] if 'NIM' in original_df.columns else f'Unknown-{i}'
+            pmb = original_df['Nomor Pendaftaran'].iloc[i] if 'Nomor Pendaftaran' in original_df.columns else (original_df['Nomor PMB'].iloc[i] if 'Nomor PMB' in original_df.columns else f'Unknown-{i}')
+            nama = original_df['Nama'].iloc[i] if 'Nama' in original_df.columns else (original_df['Nama Mahasiswa'].iloc[i] if 'Nama Mahasiswa' in original_df.columns else str(nim))
+            prodi_val = original_df['Prodi'].iloc[i] if 'Prodi' in original_df.columns else prodi
 
-    c.execute('''
-        INSERT INTO batches (batch_name, date_uploaded, total_records, at_risk, safe, status, prodi, angkatan, uploaded_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan, uploaded_by))
-    batch_id = c.lastrowid
-    
-    pred_data = [(batch_id, r['nim'], r['pmb'], r['prediction'], r['isRisk'], r['details']) for r in results]
-    c.executemany('''
-        INSERT INTO predictions (batch_id, nim, pmb, prediction, is_risk, details)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', pred_data)
-    
-    conn.commit()
-    conn.close()
+            # Get grades and find failed/passed subjects
+            failed_subjects = []
+            passed_subjects = []
+            sks_passed = 0
+            sks_failed = 0
+            for col in original_df.columns:
+                if col not in ['NIM', 'Nomor Pendaftaran', 'Nomor PMB', 'Nama', 'Nama Mahasiswa', 'Prodi', 'Angkatan', 'Semester', 'Label', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3'] and not pd.isna(original_df[col].iloc[i]):
+                    val = str(original_df[col].iloc[i]).strip().upper()
+                    # Assumption: 3 SKS per subject since actual SKS isn't in column names
+                    sks_matkul = 3
+                    if val in ['D', 'E', 'T', 'D+', 'D-']:
+                        failed_subjects.append({'matkul': col, 'nilai': val, 'sks': sks_matkul})
+                        sks_failed += sks_matkul
+                    elif val in ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-']:
+                        passed_subjects.append({'matkul': col, 'nilai': val, 'sks': sks_matkul})
+                        sks_passed += sks_matkul
+
+            details_dict = {
+                'nama': str(nama),
+                'prodi': str(prodi_val),
+                'ipk1': _safe_float('IPK 1', i),
+                'ipk2': _safe_float('IPK 2', i),
+                'ipk3': _safe_float('IPK 3', i),
+                'sks3': _safe_int('Total SKS 3', i),
+                'failed_subjects': failed_subjects,
+                'passed_subjects': passed_subjects,
+                'sks_passed': sks_passed,
+                'sks_failed': sks_failed
+            }
+
+            label_str = str(label).strip().upper()
+            is_risk = (label_str == 'SISIP' or 'TIDAK LOLOS' in label_str or label_str == '1' or 'AT RISK' in label_str)
+
+            if is_risk:
+                at_risk_count += 1
+            else:
+                safe_count += 1
+
+            results.append({
+                'nim': str(nim),
+                'pmb': str(pmb),
+                'prediction': str(label),
+                'isRisk': is_risk,
+                'details': json.dumps(details_dict),
+                'nama': str(nama),
+                'prodi': str(prodi_val)
+            })
+    except Exception as build_err:
+        return jsonify({'error': f"Gagal menyusun hasil prediksi: {build_err}"}), 500
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        date_now = datetime.datetime.now().strftime("%d %b %Y, %H:%M")
+        batch_name = f"#BATCH-{datetime.datetime.now().strftime('%y%m%d%H%M')}"
+        total_records = len(results)
+
+        c.execute('SELECT id FROM batches WHERE prodi = ? AND angkatan = ?', (prodi, angkatan))
+        existing = c.fetchone()
+        if existing:
+            old_batch_id = existing[0]
+            c.execute('DELETE FROM predictions WHERE batch_id = ?', (old_batch_id,))
+            c.execute('DELETE FROM batches WHERE id = ?', (old_batch_id,))
+
+        c.execute('''
+            INSERT INTO batches (batch_name, date_uploaded, total_records, at_risk, safe, status, prodi, angkatan, uploaded_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan, uploaded_by))
+        batch_id = c.lastrowid
+
+        pred_data = [(batch_id, r['nim'], r['pmb'], r['prediction'], r['isRisk'], r['details']) for r in results]
+        c.executemany('''
+            INSERT INTO predictions (batch_id, nim, pmb, prediction, is_risk, details)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', pred_data)
+
+        conn.commit()
+        conn.close()
+    except Exception as db_err:
+        return jsonify({'error': f"Prediksi berhasil dihitung tetapi gagal disimpan ke database: {db_err}"}), 500
 
     return jsonify({
         'batch_id': batch_id,
