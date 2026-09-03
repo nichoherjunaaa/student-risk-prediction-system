@@ -59,6 +59,39 @@ const Upload = () => {
     }
   };
 
+  // Template harus mengikuti kolom model aktif prodi terpilih, jadi prodi wajib diisi
+  const handleDownloadTemplate = async () => {
+    if (!prodi) {
+      setError("Silakan pilih Program Studi terlebih dahulu untuk mengunduh template.");
+      return;
+    }
+    setError("");
+    try {
+      const response = await axios.get(
+        `/api/template/predict?prodi=${encodeURIComponent(prodi)}`,
+        { responseType: "blob" },
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `template_prediksi_${prodi.toLowerCase().replace(/\s+/g, "_")}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      // Backend membalas JSON error walau responseType blob, jadi perlu dibaca ulang
+      let message = "Gagal mengunduh template Excel.";
+      try {
+        const text = await err.response?.data?.text?.();
+        if (text) message = JSON.parse(text).error || message;
+      } catch {
+        // biarkan pesan bawaan
+      }
+      setError(message);
+    }
+  };
+
   // Fungsi menjalankan prediksi menggunakan model pilihan aktif Admin
   const handlePredict = async () => {
     if (!file) {
@@ -116,8 +149,9 @@ const Upload = () => {
       setTimeout(() => {
         setIsPredicting(false);
         setPredictProgress(0);
+        const detail = err.response?.data;
         setError(
-          err.response?.data?.error ||
+          (typeof detail === "object" ? detail?.error : null) ||
             "Gagal mengeksekusi prediksi pada berkas data baru Anda.",
         );
       }, 500);
@@ -153,15 +187,14 @@ const Upload = () => {
                 buatan.
               </p>
               <button
-                onClick={() =>
-                  window.open(
-                    prodi
-                      ? `/api/template/predict?prodi=${encodeURIComponent(prodi)}`
-                      : "/api/template/predict",
-                    "_blank"
-                  )
+                onClick={handleDownloadTemplate}
+                disabled={!prodi}
+                title={
+                  prodi
+                    ? `Unduh template kolom model aktif prodi ${prodi}`
+                    : "Pilih Program Studi terlebih dahulu"
                 }
-                className="px-4 py-2 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition flex items-center gap-2 text-sm whitespace-nowrap"
+                className="px-4 py-2 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition flex items-center gap-2 text-sm whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               >
                 Unduh Template Excel
               </button>

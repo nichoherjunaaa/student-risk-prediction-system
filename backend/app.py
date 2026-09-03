@@ -331,62 +331,45 @@ def download_predict_template():
 
     prodi = request.args.get('prodi') or None
     feature_cols = []
-    cat_examples = {}
+
+    # Tanpa prodi, model aktif yang terambil belum tentu model yang dipakai saat
+    # prediksi, sehingga header template bisa tidak cocok.
+    if not prodi:
+        return jsonify({'error': "Pilih Program Studi terlebih dahulu. Kolom template mengikuti "
+                                 "model aktif prodi tersebut."}), 400
 
     base = _active_model_base(prodi)
-    if base:
-        try:
-            scaler = joblib.load(f"{base}_scaler.pkl")
-            encoders = joblib.load(f"{base}_encoders.pkl")
-            if hasattr(scaler, 'feature_names_in_'):
-                feature_cols = [str(c) for c in scaler.feature_names_in_]
-            for col, le in encoders.items():
-                try:
-                    cat_examples[col] = str(le.classes_[0])
-                except Exception:
-                    pass
-        except Exception:
-            feature_cols = []
+    if not base:
+        return jsonify({'error': f"Belum ada model aktif{f' untuk prodi {prodi}' if prodi else ''}. "
+                                 "Template hanya dapat dibuat setelah Admin mengaktifkan model, "
+                                 "karena kolomnya harus mengikuti model tersebut."}), 400
+    try:
+        scaler = joblib.load(f"{base}_scaler.pkl")
+        if hasattr(scaler, 'feature_names_in_'):
+            feature_cols = [str(c) for c in scaler.feature_names_in_]
+    except Exception as load_err:
+        return jsonify({'error': f"Gagal membaca kolom dari model aktif: {load_err}"}), 500
+
+    if not feature_cols:
+        return jsonify({'error': "Model aktif tidak menyimpan nama kolom fitur, "
+                                 "template tidak dapat dibuat. Lakukan training ulang dari menu Admin."}), 400
 
     cols = TEMPLATE_IDENTITY_COLS + [c for c in feature_cols if c not in TEMPLATE_IDENTITY_COLS]
 
-    def sample_row(idx):
-        r = {}
-        for col in cols:
-            if col == 'NIM':
-                r[col] = f"22{idx:06d}"
-            elif col == 'Nomor PMB':
-                r[col] = f"PMB-{idx:05d}"
-            elif col == 'Nama':
-                r[col] = f"Contoh Mahasiswa {idx}"
-            elif col == 'Prodi':
-                r[col] = prodi or 'informatika'
-            elif col == 'Angkatan':
-                r[col] = 2024
-            elif col == 'Semester':
-                r[col] = 3
-            elif col.startswith('IPK'):
-                r[col] = 3.00
-            elif col == 'Total SKS 3':
-                r[col] = 60
-            elif col in cat_examples:
-                r[col] = cat_examples[col]
-            elif col in feature_cols:
-                r[col] = 0
-            else:
-                r[col] = 'A'
-        return r
-
-    df = pd.DataFrame([sample_row(1), sample_row(2)], columns=cols)
+    # Hanya header, tanpa baris contoh: baris contoh yang lupa dihapus akan ikut
+    # diprediksi, atau justru membuang seluruh data karena filter angkatan/semester.
+    df = pd.DataFrame(columns=cols)
 
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='TEST_SEM3')
         note = pd.DataFrame({'Petunjuk': [
             'Isi baris di sheet TEST_SEM3 dengan data mahasiswa semester berjalan.',
-            'Jangan ubah nama kolom / nama sheet (TEST_SEM3).',
+            'Jangan ubah, hapus, atau menambah kolom / nama sheet (TEST_SEM3).',
             'Kolom nilai mata kuliah diisi huruf mutu (A, A-, B+, ... , D, E, T).',
-            'Baris contoh boleh dihapus sebelum diunggah.',
+            'Kolom Angkatan, Prodi, dan Semester harus sama dengan filter yang dipilih saat prediksi.',
+            'Kolom NIM, Nomor PMB, Nama, Prodi, Semester, IPK, dan Total SKS hanya untuk laporan, '
+            'tidak ikut dihitung oleh model.',
             'Header kolom mengikuti model aktif' + (f' untuk prodi {prodi}.' if prodi else '.'),
         ]})
         note.to_excel(writer, index=False, sheet_name='PETUNJUK')
@@ -815,49 +798,61 @@ def predict():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-    drop_cols = ['NIM', 'Nomor PMB', 'Angkatan', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3']
-    df = df.drop(columns=[col for col in drop_cols if col in df.columns])
-    
-    target_col = "Label"
-    if target_col in df.columns:
-        df = df.drop(columns=[target_col])
-
-    # Proses encoding dinamis menggunakan kamus fit prodi terkait
-    for col in active_encoders:
-        if col in df.columns:
-            le = active_encoders[col]
-            df[col] = df[col].astype(str).map(lambda s: s if s in le.classes_ else le.classes_[0])
-            df[col] = le.transform(df[col])
-            
-    for col in df.columns:
-        if not pd.api.types.is_numeric_dtype(df[col]):
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-
-    df = df.fillna(0)
-
-    # Transformasi normalisasi menggunakan scaler pasangannya
-    X_scaled = active_scaler.transform(df)
-
-    pad_size = active_config['pad_size']
-    if pad_size > 0:
-        X_padded = np.pad(X_scaled, ((0, 0), (0, pad_size)), mode="constant")
+    # Susun kolom persis seperti saat model dilatih. Kolom identitas (Nama, Prodi,
+    # Semester, NIM, IPK, dst.) hanya dipakai untuk laporan dan harus dibuang di sini,
+    # kalau tidak scaler menolak berkas dengan ValueError.
+    expected_cols = [str(c) for c in getattr(active_scaler, 'feature_names_in_', [])]
+    if expected_cols:
+        missing = [c for c in expected_cols if c not in df.columns]
+        if missing:
+            preview = ', '.join(missing[:10]) + ('...' if len(missing) > 10 else '')
+            return jsonify({'error': f"Berkas tidak cocok dengan model aktif prodi {prodi}. "
+                                     f"{len(missing)} kolom tidak ditemukan: {preview}. "
+                                     "Silakan unduh ulang Template Excel untuk prodi ini."}), 400
+        df = df.reindex(columns=expected_cols)
     else:
-        X_padded = X_scaled
+        drop_cols = TEMPLATE_IDENTITY_COLS + ['Label']
+        df = df.drop(columns=[col for col in drop_cols if col in df.columns])
 
-    height = active_config['height']
-    width = active_config['width']
-    X_reshaped = X_padded.reshape(-1, height, width, 1)
+    try:
+        # Proses encoding dinamis menggunakan kamus fit prodi terkait
+        for col in active_encoders:
+            if col in df.columns:
+                le = active_encoders[col]
+                df[col] = df[col].astype(str).map(lambda s: s if s in le.classes_ else le.classes_[0])
+                df[col] = le.transform(df[col])
 
-    # Prediksi menggunakan model spesifik prodi yang dikunci Admin
-    predictions = active_model.predict(X_reshaped, verbose=0)
-    n_classes = active_config['n_classes']
+        for col in df.columns:
+            if not pd.api.types.is_numeric_dtype(df[col]):
+                df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    if n_classes > 2:
-        y_pred = np.argmax(predictions, axis=1)
-    else:
-        y_pred = (predictions > 0.5).astype(int).flatten()
+        df = df.fillna(0)
 
-    predicted_labels = active_le_y.inverse_transform(y_pred)
+        # Transformasi normalisasi menggunakan scaler pasangannya
+        X_scaled = active_scaler.transform(df)
+
+        pad_size = active_config['pad_size']
+        if pad_size > 0:
+            X_padded = np.pad(X_scaled, ((0, 0), (0, pad_size)), mode="constant")
+        else:
+            X_padded = X_scaled
+
+        height = active_config['height']
+        width = active_config['width']
+        X_reshaped = X_padded.reshape(-1, height, width, 1)
+
+        # Prediksi menggunakan model spesifik prodi yang dikunci Admin
+        predictions = active_model.predict(X_reshaped, verbose=0)
+        n_classes = active_config['n_classes']
+
+        if n_classes > 2:
+            y_pred = np.argmax(predictions, axis=1)
+        else:
+            y_pred = (predictions > 0.5).astype(int).flatten()
+
+        predicted_labels = active_le_y.inverse_transform(y_pred)
+    except Exception as proc_err:
+        return jsonify({'error': f"Gagal memproses isi berkas untuk prodi {prodi}: {proc_err}"}), 400
     
     results = []
     at_risk_count = 0
@@ -875,7 +870,7 @@ def predict():
         sks_passed = 0
         sks_failed = 0
         for col in original_df.columns:
-            if col not in ['NIM', 'Nomor Pendaftaran', 'Nomor PMB', 'Nama', 'Nama Mahasiswa', 'Prodi', 'Angkatan', 'Label', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3'] and not pd.isna(original_df[col].iloc[i]):
+            if col not in ['NIM', 'Nomor Pendaftaran', 'Nomor PMB', 'Nama', 'Nama Mahasiswa', 'Prodi', 'Angkatan', 'Semester', 'Label', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3'] and not pd.isna(original_df[col].iloc[i]):
                 val = str(original_df[col].iloc[i]).strip().upper()
                 # Assumption: 3 SKS per subject since actual SKS isn't in column names
                 sks_matkul = 3
