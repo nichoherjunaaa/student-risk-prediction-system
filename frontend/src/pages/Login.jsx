@@ -39,6 +39,9 @@ const Login = () => {
 
       const user = response.data.user;
       localStorage.setItem('user', JSON.stringify(user));
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+      }
 
       if (user.role === 'admin') {
         navigate('/admin/model');

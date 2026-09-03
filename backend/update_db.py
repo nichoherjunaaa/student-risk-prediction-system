@@ -1,15 +1,13 @@
-import sqlite3
+"""Migrasi database manual.
 
-def update_db():
-    conn = sqlite3.connect('sisip_database.db')
-    c = conn.cursor()
-    try:
-        c.execute("ALTER TABLE predictions ADD COLUMN details TEXT;")
-        print("Column 'details' added successfully.")
-    except sqlite3.OperationalError as e:
-        print("Column already exists or error:", e)
-    conn.commit()
-    conn.close()
+Tidak lagi diperlukan untuk operasi normal: app.py menjalankan migrasi idempoten
+(_migrate_columns) setiap kali start. Skrip ini disimpan sebagai pintasan bila
+ingin menjalankan migrasi tanpa menyalakan server.
+
+    cd backend && venv/bin/python update_db.py
+"""
+import app
 
 if __name__ == '__main__':
-    update_db()
+    app.init_db()
+    print("Skema database sudah sinkron (kolom yang kurang otomatis ditambahkan).")

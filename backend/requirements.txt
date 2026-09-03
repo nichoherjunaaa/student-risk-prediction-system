@@ -1,5 +1,7 @@
 Flask
 flask-cors
+Werkzeug
+itsdangerous
 pandas
 numpy
 scikit-learn

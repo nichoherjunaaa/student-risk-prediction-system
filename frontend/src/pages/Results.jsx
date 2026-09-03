@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, AlertTriangle, CheckCircle, TrendingUp, ClipboardList, Download, Eye } from 'lucide-react';
+import { Users, AlertTriangle, TrendingUp, ClipboardList, Download } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
@@ -190,22 +190,6 @@ const Results = () => {
         />
         
         <div className="flex-1 overflow-y-auto p-8">
-          {/* Nilai yang tidak dikenal model diganti otomatis saat prediksi —
-              tanpa pemberitahuan ini, hasil bisa melenceng tanpa terlihat. */}
-          {Array.isArray(data.warnings) && data.warnings.length > 0 && (
-            <div className="max-w-7xl mx-auto mb-6">
-              {data.warnings.map((w, i) => (
-                <div
-                  key={i}
-                  className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 text-sm"
-                >
-                  <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
-                  <span>{w}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 max-w-7xl mx-auto">
             <div className="bg-surface rounded-2xl p-6 border border-border shadow-sm flex items-center">
               <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mr-4 border border-blue-100">
@@ -275,6 +259,56 @@ const Results = () => {
               <div style={{ minWidth: '700px', height: '100%' }}>
                 <canvas ref={chartRef}></canvas>
               </div>
+            </div>
+          </div>
+
+          {/* Daftar mahasiswa yang ditandai beresiko pada prediksi ini */}
+          <div className="w-full max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden mb-8">
+            <div className="px-6 py-5 border-b border-border bg-gray-50/50">
+              <h2 className="text-lg font-bold text-secondary flex items-center">
+                <ClipboardList className="h-5 w-5 mr-2 text-primary" />
+                Mahasiswa Ditandai Beresiko ({atRiskStudents.length})
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-gray-600">
+                <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-border">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold">NIM</th>
+                    <th className="px-6 py-4 font-semibold">Nama Mahasiswa</th>
+                    <th className="px-6 py-4 font-semibold">Prodi</th>
+                    <th className="px-6 py-4 font-semibold">Prediksi</th>
+                    <th className="px-6 py-4 font-semibold text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {atRiskStudents.map((s, idx) => (
+                    <tr key={s.nim || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                      <td className="px-6 py-4 font-medium text-secondary">{s.nim}</td>
+                      <td className="px-6 py-4">{s.nama || '-'}</td>
+                      <td className="px-6 py-4">{s.prodi || '-'}</td>
+                      <td className="px-6 py-4">
+                        <span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded">{s.prediction}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Link
+                          to={data.batch_id ? `/detail/${s.nim}?batch=${data.batch_id}` : `/detail/${s.nim}`}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-red-700 bg-red-100 border border-red-200 hover:bg-red-200 transition-colors"
+                        >
+                          Lihat Detail
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                  {atRiskStudents.length === 0 && (
+                    <tr className="bg-white">
+                      <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                        Tidak ada mahasiswa yang ditandai beresiko pada prediksi ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

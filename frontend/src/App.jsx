@@ -20,6 +20,24 @@ import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
 import SessionTimeout from "./components/SessionTimeout";
 
+function readUser() {
+  try {
+    return JSON.parse(localStorage.getItem("user"));
+  } catch {
+    return null;
+  }
+}
+
+// Penjaga route sisi klien. Tanpa token yang sah, backend tetap membalas 401,
+// tapi ini mencegah halaman (dan datanya) sempat ter-render sama sekali.
+function ProtectedRoute({ children, adminOnly = false }) {
+  const user = readUser();
+  const token = localStorage.getItem("token");
+  if (!user || !token) return <Navigate to="/login" replace />;
+  if (adminOnly && user.role !== "admin") return <Navigate to="/upload" replace />;
+  return children;
+}
+
 function App() {
   return (
     <Router>
@@ -27,18 +45,20 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/upload" element={<Upload />} />
-        <Route path="/results" element={<Results />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/detail/:nim" element={<DetailStudent />} />
-        <Route path="/courses/:nim" element={<DetailCourses />} />
-        <Route path="/batch/:id" element={<DetailBatch />} />
-        <Route path="/admin/model" element={<AdminModel />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/users/new" element={<AdminUserForm />} />
-        <Route path="/admin/users/edit/:id" element={<AdminUserForm />} />
-        <Route path="/admin/roles" element={<AdminRoles />} />
-        
+
+        <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+        <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
+        <Route path="/history" element={<ProtectedRoute adminOnly><History /></ProtectedRoute>} />
+        <Route path="/detail/:nim" element={<ProtectedRoute><DetailStudent /></ProtectedRoute>} />
+        <Route path="/courses/:nim" element={<ProtectedRoute><DetailCourses /></ProtectedRoute>} />
+        <Route path="/batch/:id" element={<ProtectedRoute><DetailBatch /></ProtectedRoute>} />
+
+        <Route path="/admin/model" element={<ProtectedRoute adminOnly><AdminModel /></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
+        <Route path="/admin/users/new" element={<ProtectedRoute adminOnly><AdminUserForm /></ProtectedRoute>} />
+        <Route path="/admin/users/edit/:id" element={<ProtectedRoute adminOnly><AdminUserForm /></ProtectedRoute>} />
+        <Route path="/admin/roles" element={<ProtectedRoute adminOnly><AdminRoles /></ProtectedRoute>} />
+
         {/* Error Pages */}
         <Route path="/500" element={<ServerError />} />
         <Route path="*" element={<NotFound />} />

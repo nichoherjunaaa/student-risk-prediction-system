@@ -12,6 +12,10 @@ services:
       SISIP_MODEL_DIR: /data/saved_models
       SISIP_ADMIN_EMAIL: ${SISIP_ADMIN_EMAIL:-admin@gmail.com}
       SISIP_ADMIN_PASSWORD: ${SISIP_ADMIN_PASSWORD:-admin123}
+      SISIP_SECRET_KEY: ${SISIP_SECRET_KEY:-dev-insecure-secret-change-me}
+      SISIP_TOKEN_MAX_AGE: ${SISIP_TOKEN_MAX_AGE:-43200}
+      SISIP_CORS_ORIGINS: ${SISIP_CORS_ORIGINS:-*}
+      SISIP_SEED_DEMO_USERS: ${SISIP_SEED_DEMO_USERS:-1}
     volumes:
       - sisip-data:/data
     healthcheck:

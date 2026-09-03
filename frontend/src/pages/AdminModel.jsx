@@ -337,8 +337,7 @@ const AdminModel = () => {
                   {modelHistory.length === 0 ? (
                     <tr>
                       <td colSpan="6" className="p-4 text-center text-gray-400">
-                        Belum ada riwayat model hasil eksperimen prodi yang
-                        tersimpan.
+                        Belum ada riwayat model hasil eksperimen prodi yang tersimpan.
                       </td>
                     </tr>
                   ) : (

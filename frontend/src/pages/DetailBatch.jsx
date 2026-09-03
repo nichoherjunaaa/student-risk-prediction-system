@@ -179,7 +179,7 @@ const DetailBatch = () => {
                       <td className="px-6 py-4">{details.nama || '-'}</td>
                       <td className="px-6 py-4">
                         <span className="bg-gray-100 text-secondary text-xs font-bold px-2 py-1 rounded">
-                          {details.ipk3 ? details.ipk3.toFixed(2) : '-'}
+                          {typeof details.ipk3 === 'number' ? details.ipk3.toFixed(2) : '-'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -192,7 +192,7 @@ const DetailBatch = () => {
                   })}
                   {flaggedStudents.length === 0 && (
                     <tr className="bg-white">
-                      <td colSpan="3" className="px-6 py-4 text-center text-gray-500">{emptyText}</td>
+                      <td colSpan="4" className="px-6 py-4 text-center text-gray-500">{emptyText}</td>
                     </tr>
                   )}
                 </tbody>

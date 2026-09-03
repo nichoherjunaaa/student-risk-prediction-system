@@ -63,6 +63,7 @@ const SessionTimeout = () => {
   const handleLogout = () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
     setIsIdle(false);
     navigate('/login');
   };

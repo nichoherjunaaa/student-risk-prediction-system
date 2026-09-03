@@ -19,6 +19,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const handleLogout = (e) => {
     e.preventDefault();
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
     localStorage.removeItem("loginTime");
     navigate("/login");
   };

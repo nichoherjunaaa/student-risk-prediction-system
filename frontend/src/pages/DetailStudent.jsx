@@ -230,7 +230,13 @@ const DetailStudent = () => {
                 </div>
               </div>
 
-                
+              <p className="text-xs text-gray-400 italic mb-8 -mt-4">
+                Catatan: IPK dan Total SKS ditampilkan sebagai konteks akademik. Model
+                prediksi saat ini tidak memakai nilai ini sebagai fitur — keputusan
+                didasarkan pada pola nilai mata kuliah.
+              </p>
+
+
               <div className="pt-6 mt-6 border-t border-border flex flex-wrap gap-3">
                 <button onClick={handlePrintProfile} className="px-5 py-2.5 bg-primary text-white font-bold border border-primary-dark rounded-lg shadow-sm hover:bg-primary-dark transition-colors flex items-center">
                   <Printer className="h-4 w-4 mr-2" /> Download Detail Profil (PDF)

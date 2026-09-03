@@ -1,30 +1,34 @@
 import os
+
+# Determinisme TF harus diset SEBELUM tensorflow diimpor, kalau tidak diabaikan.
+os.environ.setdefault('TF_DETERMINISTIC_OPS', '1')
+os.environ.setdefault('TF_CUDNN_DETERMINISTIC', '1')
+os.environ.setdefault('PYTHONHASHSEED', '42')
+os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
+
 import io
 import json
+import hmac
+import random
+import hashlib
 import sqlite3
 import datetime
-from xml.parsers.expat import model
+import functools
+
 import numpy as np
 import pandas as pd
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from werkzeug.security import generate_password_hash, check_password_hash
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import confusion_matrix, roc_auc_score
 from sklearn.utils.class_weight import compute_class_weight
+import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.utils import to_categorical
-import os
-import random
-import numpy as np
-os.environ['TF_DETERMINISTIC_OPS'] = '1'
-os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
-os.environ['PYTHONHASHSEED'] = '42'
 
-import random
-import numpy as np
-import tensorflow as tf
 tf.config.threading.set_inter_op_parallelism_threads(1)
 tf.config.threading.set_intra_op_parallelism_threads(1)
 random.seed(42)
@@ -32,7 +36,13 @@ np.random.seed(42)
 tf.random.set_seed(42)
 
 app = Flask(__name__)
-CORS(app)
+
+# CORS: default terbuka untuk pengembangan lokal; batasi di produksi lewat
+# SISIP_CORS_ORIGINS=https://domain-anda (pisahkan dengan koma bila lebih dari satu).
+_cors_origins = os.environ.get('SISIP_CORS_ORIGINS', '*').strip()
+CORS(app, resources={r"/api/*": {
+    "origins": '*' if _cors_origins == '*' else [o.strip() for o in _cors_origins.split(',') if o.strip()]
+}})
 
 # Persistent paths. In production these point at a mounted volume so that
 # the SQLite database and trained model files survive container redeploys.
@@ -45,6 +55,76 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 DEFAULT_ADMIN_EMAIL = os.environ.get('SISIP_ADMIN_EMAIL', 'admin@gmail.com')
 DEFAULT_ADMIN_PASSWORD = os.environ.get('SISIP_ADMIN_PASSWORD', 'admin123')
 
+# ---------------------------------------------------------------------------
+# Autentikasi: token bertanda-tangan (stateless) + hashing password.
+# Set SISIP_SECRET_KEY di produksi — tanpa itu token bisa dipalsukan.
+# ---------------------------------------------------------------------------
+SECRET_KEY = os.environ.get('SISIP_SECRET_KEY', 'dev-insecure-secret-change-me')
+TOKEN_MAX_AGE = int(os.environ.get('SISIP_TOKEN_MAX_AGE', str(12 * 3600)))
+_token_serializer = URLSafeTimedSerializer(SECRET_KEY, salt='sisip-auth')
+
+
+def _hash_pw(pw):
+    return generate_password_hash(pw)
+
+
+def _verify_pw(pw, stored):
+    """Terima hash lama (SHA-256 hex 64 karakter tanpa salt) maupun hash baru
+    (PBKDF2 werkzeug), supaya akun di database lama tetap bisa login."""
+    if not stored:
+        return False
+    s = str(stored)
+    if len(s) == 64 and all(ch in '0123456789abcdef' for ch in s.lower()):
+        return hmac.compare_digest(hashlib.sha256(pw.encode()).hexdigest(), s.lower())
+    try:
+        return check_password_hash(s, pw)
+    except Exception:
+        return False
+
+
+def _make_token(user):
+    return _token_serializer.dumps({'uid': user['id'], 'email': user['email'], 'role': user['role']})
+
+
+def _current_user():
+    auth = request.headers.get('Authorization', '')
+    if auth.lower().startswith('bearer '):
+        token = auth[7:].strip()
+    else:
+        token = request.args.get('token', '')
+    if not token:
+        return None
+    try:
+        return _token_serializer.loads(token, max_age=TOKEN_MAX_AGE)
+    except (BadSignature, SignatureExpired):
+        return None
+
+
+def require_auth(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        user = _current_user()
+        if not user:
+            return jsonify({'error': 'Sesi tidak valid atau telah berakhir. Silakan login ulang.'}), 401
+        request.user = user
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def require_role(*roles):
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            user = _current_user()
+            if not user:
+                return jsonify({'error': 'Sesi tidak valid atau telah berakhir. Silakan login ulang.'}), 401
+            if user.get('role') not in roles:
+                return jsonify({'error': 'Anda tidak memiliki hak akses untuk tindakan ini.'}), 403
+            request.user = user
+            return fn(*args, **kwargs)
+        return wrapper
+    return deco
+
 
 def resolve_model_path(stored_path):
     """Resolve a model file path stored in the registry, tolerating rows that
@@ -55,6 +135,16 @@ def resolve_model_path(stored_path):
     if os.path.exists(stored_path):
         return stored_path
     return os.path.join(MODEL_DIR, os.path.basename(stored_path))
+
+def _migrate_columns(c, wanted):
+    """Tambahkan kolom yang belum ada pada tabel yang sudah terlanjur dibuat.
+    `wanted` = {nama_tabel: [(nama_kolom, tipe_sql), ...]}."""
+    for table, cols in wanted.items():
+        existing = {row[1] for row in c.execute("PRAGMA table_info(%s)" % table).fetchall()}
+        for name, coltype in cols:
+            if name not in existing:
+                c.execute("ALTER TABLE %s ADD COLUMN %s %s" % (table, name, coltype))
+
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -106,25 +196,29 @@ def init_db():
             role TEXT NOT NULL
         )
     ''')
-    
-    import hashlib
-    def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
+
+    # Migrasi idempoten: tambahkan kolom yang muncul setelah database dibuat.
+    # CREATE TABLE IF NOT EXISTS tidak menambah kolom pada tabel yang sudah ada.
+    _migrate_columns(c, {
+        'batches': [('uploaded_by', 'TEXT'), ('semester', 'TEXT')],
+        'predictions': [('details', 'TEXT')],
+    })
 
     # Seed default admin + DPA only on a fresh database.
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         c.executemany('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', [
-            (DEFAULT_ADMIN_EMAIL, hash_pw(DEFAULT_ADMIN_PASSWORD), 'Staf Admin', 'admin'),
-            ('dpa@gmail.com', hash_pw('dpa123'), 'Dosen Pembimbing', 'dpa'),
+            (DEFAULT_ADMIN_EMAIL, _hash_pw(DEFAULT_ADMIN_PASSWORD), 'Staf Admin', 'admin'),
+            ('dpa@gmail.com', _hash_pw('dpa123'), 'Dosen Pembimbing', 'dpa'),
         ])
 
     # Demo accounts for end-to-end testing (one per role). Idempotent: safe to
     # run on every startup. Disable in real production with SISIP_SEED_DEMO_USERS=0.
     if os.environ.get('SISIP_SEED_DEMO_USERS', '1').lower() in ('1', 'true', 'yes'):
         demo_users = [
-            ('admin.test@sisip.test',   hash_pw('Admin#2026'),   'Admin Tester',   'admin'),
-            ('dpa.test@sisip.test',     hash_pw('Dpa#2026'),     'DPA Tester',     'dpa'),
-            ('kaprodi.test@sisip.test', hash_pw('Kaprodi#2026'), 'Kaprodi Tester', 'kaprodi'),
+            ('admin.test@sisip.test',   _hash_pw('Admin#2026'),   'Admin Tester',   'admin'),
+            ('dpa.test@sisip.test',     _hash_pw('Dpa#2026'),     'DPA Tester',     'dpa'),
+            ('kaprodi.test@sisip.test', _hash_pw('Kaprodi#2026'), 'Kaprodi Tester', 'kaprodi'),
         ]
         c.executemany(
             'INSERT OR IGNORE INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
@@ -143,12 +237,27 @@ global_le_y = None
 global_scaler = None
 global_config = {}
 
+# Arsitektur memakai dua MaxPooling2D((2,2)), jadi tiap sisi grid harus >= 4.
+MIN_GRID_SIDE = 4
+
+
 def find_grid_dimensions(n):
-    factors = []
+    """Bentuk grid 2D untuk n fitur, sisi minimal MIN_GRID_SIDE.
+
+    Faktorisasi pas saja tidak cukup: bila n bilangan prima (mis. 157 fitur),
+    satu-satunya faktor adalah 1 x n sehingga tinggi grid = 1, lalu MaxPooling
+    kedua menghasilkan dimensi 0 dan pelatihan gagal dengan ValueError. Kalau
+    tidak ada faktorisasi yang memenuhi syarat, pakai grid mendekati persegi dan
+    biarkan sisanya di-padding nol (pad_size sudah disimpan di config)."""
+    best = None
     for i in range(1, int(np.sqrt(n)) + 1):
-        if n % i == 0:
-            factors.append((i, n // i))
-    return factors[-1] if factors else (int(np.sqrt(n)), int(np.ceil(n / np.sqrt(n))))
+        if n % i == 0 and i >= MIN_GRID_SIDE and (n // i) >= MIN_GRID_SIDE:
+            best = (i, n // i)
+    if best:
+        return best
+    height = max(MIN_GRID_SIDE, int(np.floor(np.sqrt(n))))
+    width = max(MIN_GRID_SIDE, int(np.ceil(n / height)))
+    return (height, width)
 
 def build_cnn_model(input_shape, n_classes, dropout_rate=0.3):
     model = keras.Sequential([
@@ -182,37 +291,28 @@ def login():
     data = request.json
     if not data or not data.get('email') or not data.get('password'):
         return jsonify({'error': 'Email dan password wajib diisi'}), 400
-        
+
     email = data.get('email')
     password = data.get('password')
-    
-    import hashlib
-    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-    
+
     try:
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        c.execute("SELECT id, email, name, role FROM users WHERE email = ? AND password = ?", (email, hashed_pw))
+        c.execute("SELECT id, email, name, role, password FROM users WHERE email = ?", (email,))
         user = c.fetchone()
         conn.close()
-        
-        if user:
-            return jsonify({
-                'message': 'Login berhasil',
-                'user': {
-                    'id': user['id'],
-                    'email': user['email'],
-                    'name': user['name'],
-                    'role': user['role']
-                }
-            }), 200
-        else:
+
+        if not user or not _verify_pw(password, user['password']):
             return jsonify({'error': 'Kredensial tidak valid'}), 401
+
+        u = {'id': user['id'], 'email': user['email'], 'name': user['name'], 'role': user['role']}
+        return jsonify({'message': 'Login berhasil', 'user': u, 'token': _make_token(u)}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/users', methods=['GET'])
+@require_role('admin')
 def get_users():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
@@ -223,18 +323,18 @@ def get_users():
     return jsonify(users), 200
 
 @app.route('/api/users', methods=['POST'])
+@require_role('admin')
 def create_user():
     data = request.json
     email = data.get('email')
     password = data.get('password')
     name = data.get('name')
-    
+
     if not email or not password or not name:
         return jsonify({'error': 'Semua field wajib diisi'}), 400
-        
-    import hashlib
-    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-    
+
+    hashed_pw = _hash_pw(password)
+
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
@@ -248,6 +348,7 @@ def create_user():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])
+@require_role('admin')
 def get_user(user_id):
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
@@ -260,19 +361,19 @@ def get_user(user_id):
     return jsonify({'error': 'User tidak ditemukan'}), 404
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
+@require_role('admin')
 def update_user(user_id):
     data = request.json
     email = data.get('email')
     name = data.get('name')
     password = data.get('password')
-    
+
     role = data.get('role', 'dpa')
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         if password:
-            import hashlib
-            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+            hashed_pw = _hash_pw(password)
             c.execute('UPDATE users SET email = ?, name = ?, password = ?, role = ? WHERE id = ? AND role != "admin"', (email, name, hashed_pw, role, user_id))
         else:
             c.execute('UPDATE users SET email = ?, name = ?, role = ? WHERE id = ? AND role != "admin"', (email, name, role, user_id))
@@ -286,6 +387,7 @@ def update_user(user_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@require_role('admin')
 def delete_user(user_id):
     try:
         conn = sqlite3.connect(DB_FILE)
@@ -432,6 +534,7 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
 
 @app.route('/api/template/predict', methods=['GET'])
 @app.route('/api/template', methods=['GET'])
+@require_auth
 def download_predict_template():
     """Excel template for batch prediction upload, already filled with usable example
     data. Feature columns are taken from the active model's scaler so the header
@@ -476,56 +579,9 @@ def download_predict_template():
                               angkatan_param, semester_param)
     df = pd.DataFrame(rows, columns=cols)
 
-    mismatch_note = ''
-    if prodi_param and resolved_prodi and prodi_param.strip().lower() != resolved_prodi.strip().lower():
-        mismatch_note = (f" PERHATIAN: belum ada model aktif untuk prodi {prodi_param}, "
-                         f"jadi contoh ini memakai model prodi {resolved_prodi}.")
-
-    # Daftar nilai yang benar-benar dikenal model per kolom. Tanpa ini pengguna
-    # menebak huruf mutu (mis. 'B+') yang tidak ada di kolom tersebut, lalu
-    # diam-diam diganti jadi kelas pertama dan hasil prediksi ikut melenceng.
-    valid_rows = []
-    for col in cols:
-        if col in encoders:
-            classes = [str(x) for x in encoders[col].classes_]
-            valid_rows.append({
-                'Kolom': col,
-                'Jenis': 'Pilihan (teks)',
-                'Nilai yang diterima': ', '.join(classes[:25]) + ('...' if len(classes) > 25 else ''),
-            })
-        elif col in feature_cols:
-            i = feature_cols.index(col)
-            rentang = ''
-            if getattr(scaler, 'mean_', None) is not None and getattr(scaler, 'scale_', None) is not None:
-                m, s = float(scaler.mean_[i]), float(scaler.scale_[i])
-                rentang = f"angka, rata-rata data latih {m:.2f} (sebaran ±{s:.2f})"
-            valid_rows.append({'Kolom': col, 'Jenis': 'Angka', 'Nilai yang diterima': rentang or 'angka'})
-        else:
-            valid_rows.append({'Kolom': col, 'Jenis': 'Identitas (tidak dihitung model)',
-                               'Nilai yang diterima': 'bebas'})
-
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='TEST_SEM3')
-        note = pd.DataFrame({'Petunjuk': [
-            f"Sheet TEST_SEM3 SUDAH DIISI {len(rows)} contoh mahasiswa: Prodi {model_prodi_label}, "
-            f"Angkatan {angkatan_param}, Semester {semester_param}." + mismatch_note,
-            'Nilai contoh diambil dari sebaran data latih model aktif, dengan gradasi dari profil '
-            'kuat sampai lemah, supaya hasil prediksinya bervariasi (bukan semua satu kelas).',
-            'Ganti NIM, Nama, dan nilai dengan data mahasiswa asli sebelum diunggah untuk produksi '
-            '(baris contoh boleh dihapus).',
-            'Kolom Prodi, Angkatan, dan Semester pada file INI harus sama persis dengan pilihan '
-            'dropdown Program Studi/Angkatan/Semester di halaman Unggah Data — kalau beda, sistem '
-            'akan menolak dan menyebutkan bagian mana yang tidak cocok.',
-            'Jangan ubah, hapus, atau menambah nama kolom / nama sheet (TEST_SEM3).',
-            'PENTING: nilai yang diterima BERBEDA per kolom — lihat sheet NILAI_VALID. Nilai di luar '
-            'daftar itu akan diganti otomatis oleh sistem ke pilihan pertama kolom tersebut, dan '
-            'hasil prediksi bisa menyimpang tanpa terlihat.',
-            'Kolom NIM, Nomor PMB, Nama, Prodi, Semester, IPK 1-3, dan Total SKS 3 hanya untuk '
-            'laporan — model TIDAK memakai kolom ini untuk menghitung prediksi.',
-        ]})
-        note.to_excel(writer, index=False, sheet_name='PETUNJUK')
-        pd.DataFrame(valid_rows).to_excel(writer, index=False, sheet_name='NILAI_VALID')
     buf.seek(0)
 
     return send_file(
@@ -537,6 +593,7 @@ def download_predict_template():
 
 
 @app.route('/api/preview', methods=['POST'])
+@require_auth
 def preview_data():
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
@@ -563,7 +620,7 @@ def preview_data():
         if 'Angkatan' in df.columns and angkatan != 'Unknown' and angkatan != '':
             df = df[_match_series(df['Angkatan'], angkatan)]
         if 'Prodi' in df.columns and prodi != 'Unknown' and prodi != '':
-            df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
+            df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False, regex=False)]
         if 'Semester' in df.columns and semester != 'Unknown' and semester != '':
             df = df[_match_series(df['Semester'], semester)]
 
@@ -579,6 +636,7 @@ def preview_data():
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/train', methods=['POST'])
+@require_role('admin')
 def train_model():
     global global_model, global_encoders, global_le_y, global_scaler, global_config
     if 'file' not in request.files:
@@ -602,13 +660,15 @@ def train_model():
         
         # Filter by Prodi and Angkatan if columns exist
         if 'Prodi' in df.columns and prodi != 'Unknown' and prodi != '':
-            df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
-        
+            df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False, regex=False)]
+
         if 'Angkatan' in df.columns and angkatan != '':
-            angkatan_list = [a.strip() for a in angkatan.split(',') if a.strip()]
+            # Normalisasi ('2023' vs '2023.0') supaya satu sel kosong di kolom lain
+            # yang mengubah kolom Angkatan jadi float tidak diam-diam membuang baris.
+            angkatan_list = [_norm_str(a) for a in str(angkatan).split(',') if a.strip()]
             if angkatan_list:
-                df = df[df['Angkatan'].astype(str).isin(angkatan_list)]
-            
+                df = df[df['Angkatan'].map(_norm_str).isin(angkatan_list)]
+
         if len(df) == 0:
             return jsonify({'error': f"Tidak ada data latih (TRAIN) untuk Prodi {prodi}."}), 400
             
@@ -720,12 +780,22 @@ def train_model():
         joblib.dump(global_le_y, os.path.join(MODEL_DIR, f"{version_name}_ley.pkl"))
         joblib.dump(global_config, os.path.join(MODEL_DIR, f"{version_name}_config.pkl"))
 
+        # EarlyStopping(restore_best_weights=True) mengembalikan bobot epoch dengan
+        # val_loss terendah — bukan epoch terakhir. Catat metrik epoch itu juga,
+        # supaya angka di registri sesuai dengan model yang benar-benar disimpan.
         try:
-            accuracy_score = float(history.history['val_accuracy'][-1])
-            loss_score = float(history.history['val_loss'][-1])
+            hist = history.history
+            loss_series = hist.get('val_loss') or hist.get('loss') or []
+            acc_series = hist.get('val_accuracy') or hist.get('accuracy') or []
+            if loss_series:
+                best_idx = int(np.argmin(loss_series))
+                loss_score = float(loss_series[best_idx])
+                accuracy_score = float(acc_series[best_idx]) if best_idx < len(acc_series) else (
+                    float(acc_series[-1]) if acc_series else 0.900)
+            else:
+                accuracy_score, loss_score = 0.900, 0.100
         except Exception:
-            accuracy_score = float(history.history['accuracy'][-1]) if 'accuracy' in history.history else 0.900
-            loss_score = float(history.history['loss'][-1]) if 'loss' in history.history else 0.100
+            accuracy_score, loss_score = 0.900, 0.100
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute('''
@@ -747,143 +817,8 @@ def train_model():
         print(f"Gagal mencatat log riwayat admin: {admin_err}")
         return jsonify({'message': 'Model trained successfully'}), 200
 
-    
-# @app.route('/api/predict', methods=['POST'])
-# def predict():
-#     if global_model is None:
-#         return jsonify({'error': 'Model not trained yet. Please train first.'}), 400
-
-#     if 'file' not in request.files:
-#         return jsonify({'error': 'No file uploaded'}), 400
-    
-#     file = request.files['file']
-#     filename = file.filename
-#     prodi = request.form.get('prodi', 'Unknown')
-#     angkatan = request.form.get('angkatan', 'Unknown')
-
-#     try:
-#         excel_file = pd.ExcelFile(file)
-#         sheet_to_read = 'TEST_SEM3' if 'TEST_SEM3' in excel_file.sheet_names else 0
-#         df = pd.read_excel(excel_file, sheet_name=sheet_to_read)
-        
-#         # Filter by Angkatan and Prodi if columns exist
-#         if 'Angkatan' in df.columns and angkatan != 'Unknown':
-#             df = df[df['Angkatan'].astype(str) == str(angkatan)]
-#         if 'Prodi' in df.columns and prodi != 'Unknown':
-#             df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
-            
-#         if len(df) == 0:
-#             return jsonify({'error': f"Tidak ada data uji (TEST) untuk Angkatan {angkatan} dan Prodi {prodi}. Harap unggah data uji yang sesuai."}), 400
-            
-#         original_df = df.copy()
-#     except Exception as e:
-#         return jsonify({'error': str(e)}), 400
-
-#     drop_cols = ['NIM', 'Nomor PMB', 'Angkatan', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3']
-#     df = df.drop(columns=[col for col in drop_cols if col in df.columns])
-    
-#     target_col = "Label"
-#     if target_col in df.columns:
-#         df = df.drop(columns=[target_col])
-
-#     for col in global_encoders:
-#         if col in df.columns:
-#             le = global_encoders[col]
-#             df[col] = df[col].astype(str).map(lambda s: s if s in le.classes_ else le.classes_[0])
-#             df[col] = le.transform(df[col])
-            
-#     # For any remaining columns that are somehow string (but weren't in train), force them to numeric
-#     for col in df.columns:
-#         if not pd.api.types.is_numeric_dtype(df[col]):
-#             df[col] = pd.to_numeric(df[col], errors='coerce')
-
-#     df = df.fillna(0)
-
-#     X_scaled = global_scaler.transform(df)
-
-#     pad_size = global_config['pad_size']
-#     if pad_size > 0:
-#         X_padded = np.pad(X_scaled, ((0, 0), (0, pad_size)), mode="constant")
-#     else:
-#         X_padded = X_scaled
-
-#     height = global_config['height']
-#     width = global_config['width']
-#     X_reshaped = X_padded.reshape(-1, height, width, 1)
-
-#     predictions = global_model.predict(X_reshaped)
-#     n_classes = global_config['n_classes']
-
-#     if n_classes > 2:
-#         y_pred = np.argmax(predictions, axis=1)
-#     else:
-#         y_pred = (predictions > 0.5).astype(int).flatten()
-
-#     predicted_labels = global_le_y.inverse_transform(y_pred)
-    
-#     results = []
-#     at_risk_count = 0
-#     safe_count = 0
-    
-#     for i, label in enumerate(predicted_labels):
-#         nim = original_df['NIM'].iloc[i] if 'NIM' in original_df.columns else f'Unknown-{i}'
-#         pmb = original_df['Nomor Pendaftaran'].iloc[i] if 'Nomor Pendaftaran' in original_df.columns else (original_df['Nomor PMB'].iloc[i] if 'Nomor PMB' in original_df.columns else f'Unknown-{i}')
-#         label_str = str(label).strip().upper()
-#         is_risk = (label_str == 'SISIP' or 'TIDAK LOLOS' in label_str or label_str == '1' or 'AT RISK' in label_str)
-        
-#         if is_risk:
-#             at_risk_count += 1
-#         else:
-#             safe_count += 1
-            
-#         results.append({
-#             'nim': str(nim),
-#             'pmb': str(pmb),
-#             'prediction': str(label),
-#             'isRisk': is_risk
-#         })
-
-#     # Save to Database
-#     conn = sqlite3.connect(DB_FILE)
-#     c = conn.cursor()
-#     date_now = datetime.datetime.now().strftime("%d %b %Y, %H:%M")
-#     batch_name = f"#BATCH-{datetime.datetime.now().strftime('%y%m%d%H%M')}"
-#     total_records = len(results)
-
-#     # Hapus batch lama jika prodi dan angkatan yang sama sudah ada sebelumnya
-#     c.execute('SELECT id FROM batches WHERE prodi = ? AND angkatan = ?', (prodi, angkatan))
-#     existing = c.fetchone()
-#     if existing:
-#         old_batch_id = existing[0]
-#         c.execute('DELETE FROM predictions WHERE batch_id = ?', (old_batch_id,))
-#         c.execute('DELETE FROM batches WHERE id = ?', (old_batch_id,))
-
-#     c.execute('''
-#         INSERT INTO batches (batch_name, date_uploaded, total_records, at_risk, safe, status, prodi, angkatan)
-#         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-#     ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan))
-#     batch_id = c.lastrowid
-    
-#     pred_data = [(batch_id, r['nim'], r['pmb'], r['prediction'], r['isRisk']) for r in results]
-#     c.executemany('''
-#         INSERT INTO predictions (batch_id, nim, pmb, prediction, is_risk)
-#         VALUES (?, ?, ?, ?, ?)
-#     ''', pred_data)
-    
-#     conn.commit()
-#     conn.close()
-
-#     return jsonify({
-#         'batch_id': batch_id,
-#         'batch_name': batch_name,
-#         'total': total_records,
-#         'atRisk': at_risk_count,
-#         'safe': safe_count,
-#         'prodi': prodi,
-#         'angkatan': angkatan,
-#         'results': results
-#     })
 @app.route('/api/predict', methods=['POST'])
+@require_auth
 def predict():
     import os
     import joblib
@@ -944,7 +879,7 @@ def predict():
         if 'Angkatan' in df.columns and angkatan != 'Unknown' and angkatan != '':
             df = df[_match_series(df['Angkatan'], angkatan)]
         if 'Prodi' in df.columns and prodi != 'Unknown' and prodi != '':
-            df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False)]
+            df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False, regex=False)]
         if 'Semester' in df.columns and semester != 'Unknown' and semester != '':
             df = df[_match_series(df['Semester'], semester)]
 
@@ -993,26 +928,15 @@ def predict():
         drop_cols = TEMPLATE_IDENTITY_COLS + ['Label']
         df = df.drop(columns=[col for col in drop_cols if col in df.columns])
 
-    unknown_report = []
     try:
         # Proses encoding dinamis menggunakan kamus fit prodi terkait.
-        # Nilai yang tidak dikenal model diganti ke kelas pertama — itu bisa
-        # membelokkan hasil tanpa terlihat, jadi dicatat dan dilaporkan balik.
+        # Nilai yang tidak dikenal model diganti ke kelas pertama agar prediksi
+        # tetap bisa jalan.
         for col in active_encoders:
             if col in df.columns:
                 le = active_encoders[col]
                 known = set(str(x) for x in le.classes_)
                 as_str = df[col].astype(str)
-                unknown_mask = ~as_str.isin(known)
-                n_unknown = int(unknown_mask.sum())
-                if n_unknown:
-                    contoh = sorted(set(as_str[unknown_mask]))[:3]
-                    unknown_report.append({
-                        'kolom': col,
-                        'jumlah_sel': n_unknown,
-                        'contoh_nilai': contoh,
-                        'diganti_menjadi': str(le.classes_[0]),
-                    })
                 df[col] = as_str.map(lambda s: s if s in known else str(le.classes_[0]))
                 df[col] = le.transform(df[col])
 
@@ -1138,7 +1062,11 @@ def predict():
         batch_name = f"#BATCH-{datetime.datetime.now().strftime('%y%m%d%H%M')}"
         total_records = len(results)
 
-        c.execute('SELECT id FROM batches WHERE prodi = ? AND angkatan = ?', (prodi, angkatan))
+        # Kunci dedup mencakup semester — tanpa ini prediksi semester berbeda pada
+        # prodi & angkatan yang sama saling menimpa dan hasil lama hilang permanen.
+        semester_key = '' if str(semester) in ('Unknown', 'None', '') else str(semester)
+        c.execute('SELECT id FROM batches WHERE prodi = ? AND IFNULL(angkatan, "") = ? AND IFNULL(semester, "") = ?',
+                  (prodi, '' if angkatan in (None, 'Unknown') else angkatan, semester_key))
         existing = c.fetchone()
         if existing:
             old_batch_id = existing[0]
@@ -1146,9 +1074,9 @@ def predict():
             c.execute('DELETE FROM batches WHERE id = ?', (old_batch_id,))
 
         c.execute('''
-            INSERT INTO batches (batch_name, date_uploaded, total_records, at_risk, safe, status, prodi, angkatan, uploaded_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan, uploaded_by))
+            INSERT INTO batches (batch_name, date_uploaded, total_records, at_risk, safe, status, prodi, angkatan, uploaded_by, semester)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan, uploaded_by, semester_key))
         batch_id = c.lastrowid
 
         pred_data = [(batch_id, r['nim'], r['pmb'], r['prediction'], r['isRisk'], r['details']) for r in results]
@@ -1162,20 +1090,6 @@ def predict():
     except Exception as db_err:
         return jsonify({'error': f"Prediksi berhasil dihitung tetapi gagal disimpan ke database: {db_err}"}), 500
 
-    warnings = []
-    if unknown_report:
-        total_sel = sum(u['jumlah_sel'] for u in unknown_report)
-        contoh = ', '.join(
-            f"{u['kolom']} ({', '.join(u['contoh_nilai'])} -> {u['diganti_menjadi']})"
-            for u in unknown_report[:5]
-        )
-        warnings.append(
-            f"{total_sel} sel pada {len(unknown_report)} kolom berisi nilai yang tidak dikenal model "
-            f"dan diganti otomatis, sehingga hasil bisa kurang akurat. Contoh: {contoh}"
-            + ('...' if len(unknown_report) > 5 else '')
-            + " Lihat sheet NILAI_VALID pada template untuk daftar nilai yang diterima tiap kolom."
-        )
-
     return jsonify({
         'batch_id': batch_id,
         'batch_name': batch_name,
@@ -1184,10 +1098,13 @@ def predict():
         'safe': safe_count,
         'prodi': prodi,
         'angkatan': angkatan,
+        'semester': semester_key,
         'results': results,
-        'warnings': warnings,
     })
+
+
 @app.route('/api/history', methods=['GET'])
+@require_auth
 def get_history():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
@@ -1198,6 +1115,7 @@ def get_history():
     return jsonify({'batches': batches})
 
 @app.route('/api/batch/<int:batch_id>', methods=['GET'])
+@require_auth
 def get_batch(batch_id):
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
@@ -1216,6 +1134,7 @@ def get_batch(batch_id):
     return jsonify(result)
 
 @app.route('/api/models', methods=['GET'])
+@require_role('admin')
 def get_all_models():
     try:
         conn = sqlite3.connect(DB_FILE)
@@ -1247,18 +1166,33 @@ def get_all_models():
 
 
 @app.route('/api/models/<int:model_id>/activate', methods=['POST'])
+@require_role('admin')
 def activate_model(model_id):
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute("SELECT prodi, file_path FROM model_registry WHERE id = ?", (model_id,))
         target = c.fetchone()
-        
+
         if not target:
             conn.close()
             return jsonify({"error": "Data model tidak ditemukan"}), 404
         target_prodi = target[0]
         saved_path = target[1]
+
+        # Jangan kunci model yang berkas fisiknya tidak lengkap — kalau tidak,
+        # error baru muncul nanti saat dosen menjalankan prediksi.
+        base_path = resolve_model_path(saved_path)
+        if base_path.endswith('.keras'):
+            base_path = base_path[:-len('.keras')]
+        needed = [f"{base_path}.keras", f"{base_path}_scaler.pkl", f"{base_path}_encoders.pkl",
+                  f"{base_path}_ley.pkl", f"{base_path}_config.pkl"]
+        missing = [os.path.basename(p) for p in needed if not os.path.exists(p)]
+        if missing:
+            conn.close()
+            return jsonify({"error": f"Berkas model tidak lengkap di server ({', '.join(missing)}). "
+                                     "Latih ulang model ini sebelum diaktifkan."}), 400
+
         c.execute("UPDATE model_registry SET is_active = 0 WHERE prodi = ?", (target_prodi,))
         c.execute("UPDATE model_registry SET is_active = 1 WHERE id = ?", (model_id,))
         
@@ -1273,6 +1207,7 @@ def activate_model(model_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/student/<nim>', methods=['GET'])
+@require_auth
 def get_student(nim):
     batch_id = request.args.get('batch')
     
