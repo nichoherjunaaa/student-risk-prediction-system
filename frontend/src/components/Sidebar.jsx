@@ -7,9 +7,79 @@ import {
   X,
   Settings2,
   Users,
-  ChevronDown,
+  Wand2,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+
+// Label peran ditulis lengkap supaya akun Kaprodi/Dekan tidak lagi ditampilkan
+// sebagai "DPA" hanya karena bukan admin.
+const ROLE_LABELS = {
+  admin: "SUPER ADMIN",
+  kaprodi: "KAPRODI",
+  dekan: "DEKAN",
+  dpa: "DPA",
+};
+
+// Menu dikelompokkan mengikuti alur kerja: siapkan data & model dulu, baru
+// jalankan prediksi, sisanya administrasi. `match` menentukan menu induk mana
+// yang menyala saat pengguna berada di halaman anak (detail mahasiswa, detail
+// batch, form pengguna), supaya orientasi tidak hilang.
+const MENU_GROUPS = [
+  {
+    label: "Data & Model",
+    adminOnly: true,
+    items: [
+      {
+        to: "/admin/preprocessing",
+        label: "Preprocessing Data",
+        icon: Wand2,
+        match: (p) => p === "/admin/preprocessing",
+      },
+      {
+        to: "/admin/model",
+        label: "Master Model",
+        icon: Settings2,
+        match: (p) => p === "/admin/model",
+      },
+    ],
+  },
+  {
+    label: "Prediksi",
+    items: [
+      {
+        to: "/upload",
+        label: "Unggah Data",
+        icon: UploadCloud,
+        match: (p) => p === "/upload",
+      },
+      {
+        to: "/results",
+        label: "Hasil Prediksi",
+        icon: BarChart2,
+        match: (p) =>
+          p === "/results" || p.startsWith("/detail/") || p.startsWith("/courses/"),
+      },
+    ],
+  },
+  {
+    label: "Administrasi",
+    adminOnly: true,
+    items: [
+      {
+        to: "/admin/users",
+        label: "Master Pengguna",
+        icon: Users,
+        match: (p) => p.startsWith("/admin/users"),
+      },
+      {
+        to: "/history",
+        label: "Log Riwayat",
+        icon: History,
+        match: (p) => p === "/history" || p.startsWith("/batch/"),
+      },
+    ],
+  },
+];
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const location = useLocation();
@@ -24,7 +94,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     navigate("/login");
   };
 
-  // 1. DATA PENGGUNA dari localStorage
   let user = { email: "@admin.com", name: "Staf Admin", role: "admin" };
   try {
     const savedUser = localStorage.getItem("user");
@@ -35,9 +104,18 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     console.error("Gagal membaca data user", e);
   }
 
-  const userEmail = user.email;
-  const userName = user.name;
-  const computedRole = user.role;
+  const { email: userEmail, name: userName, role: computedRole } = user;
+  const roleLabel = ROLE_LABELS[computedRole] || String(computedRole || "Pengguna").toUpperCase();
+  const initials = (userName || "?")
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+
+  const groups = MENU_GROUPS.filter(
+    (g) => !g.adminOnly || computedRole === "admin",
+  );
 
   return (
     <>
@@ -52,13 +130,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         <div className="pt-8 pb-6 px-6 flex flex-col items-center justify-center border-b border-white/10 shrink-0 relative">
           <button
             onClick={toggleSidebar}
+            aria-label="Tutup menu"
             className="lg:hidden absolute top-4 right-4 p-2 text-white/70 hover:text-white bg-white/10 rounded-md"
           >
             <X className="h-5 w-5" />
           </button>
           <img
             src="/logo.png"
-            alt="System Logo"
+            alt="Logo Sisip Program"
             className="h-14 w-14 object-contain bg-surface p-2 rounded-xl shadow-md mb-4"
           />
           <h2 className="font-bold text-xl leading-tight tracking-wide text-white text-center">
@@ -69,76 +148,53 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </span>
         </div>
 
-        {/* Role Display mimicking the image */}
+        {/* Penanda peran — hanya informasi, bukan tombol. */}
         <div className="px-6 py-4 border-b border-white/10 shrink-0">
-          <div className="flex items-center justify-between bg-white/10 px-4 py-2.5 rounded-lg cursor-pointer hover:bg-white/15 transition-colors">
-            <span className="text-sm font-bold tracking-wide text-white uppercase">{computedRole === 'admin' ? 'SUPER ADMIN' : 'DPA'}</span>
-            <div className="h-6 w-6 bg-white/20 rounded flex items-center justify-center">
-              <ChevronDown className="h-4 w-4 text-white" />
-            </div>
+          <div className="bg-white/10 px-4 py-2.5 rounded-lg">
+            <span className="text-sm font-bold tracking-wide text-white uppercase">
+              {roleLabel}
+            </span>
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto no-scrollbar py-8 flex flex-col space-y-2">
-          {/* MENU KHUSUS ADMIN */}
-          {computedRole === "admin" && (
-            <>
-              <Link
-                to="/admin/model"
-                className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-4 ${currentPath === "/admin/model" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
-              >
-                <Settings2 className="h-5 w-5 mr-4 text-accent" />
-                <span>Master Model</span>
-              </Link>
-              <Link
-                to="/admin/users"
-                className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 mb-4 ${currentPath.startsWith("/admin/users") || currentPath.startsWith("/admin/roles") ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
-              >
-                <Users className="h-5 w-5 mr-4 text-accent" />
-                <span>Master Pengguna</span>
-              </Link>
-            </>
-          )}
-
-          {/* MENU UTAMA USER / DOSEN */}
-          <Link
-            to="/upload"
-            className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 ${currentPath === "/upload" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
-          >
-            <UploadCloud className="h-5 w-5 mr-4 text-accent" />
-            <span>Unggah Data</span>
-          </Link>
-
-          <Link
-            to="/results"
-            className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 ${currentPath === "/results" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
-          >
-            <BarChart2 className="h-5 w-5 mr-4 text-accent" />
-            <span>Hasil Prediksi</span>
-          </Link>
-
-          {/* LOG RIWAYAT - khusus admin, diletakkan paling bawah */}
-          {computedRole === "admin" && (
-            <Link
-              to="/history"
-              className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 mt-2 ${currentPath === "/history" ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
-            >
-              <History className="h-5 w-5 mr-4 text-accent" />
-              <span>Log Riwayat</span>
-            </Link>
-          )}
+        {/* overflow-y-auto tanpa menyembunyikan scrollbar: di layar pendek menu
+            memang perlu digulir, dan pengguna harus tahu masih ada isinya. */}
+        <nav className="flex-1 overflow-y-auto py-6 space-y-6">
+          {groups.map((group) => (
+            <div key={group.label}>
+              <p className="px-8 mb-2 text-[11px] font-bold uppercase tracking-widest text-white/40">
+                {group.label}
+              </p>
+              <div className="space-y-2">
+                {group.items.map(({ to, label, icon: Icon, match }) => {
+                  const active = match(currentPath);
+                  return (
+                    <Link
+                      key={to}
+                      to={to}
+                      aria-current={active ? "page" : undefined}
+                      className={`flex items-center px-4 py-3 mx-4 rounded-lg font-medium transition duration-200 border border-dashed border-white/20 ${active ? "bg-surface text-primary font-bold shadow-md border-solid" : "text-white/80 bg-white/5 hover:bg-white/10 hover:text-white"}`}
+                    >
+                      <Icon className="h-5 w-5 mr-4 text-accent" />
+                      <span>{label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className="p-6 border-t border-white/10 shrink-0">
           <div className="flex items-center mb-6">
             <div className="h-10 w-10 rounded-lg bg-primary-light flex items-center justify-center text-sm font-bold shadow-inner border border-white/20">
-              AD
+              {initials}
             </div>
-            <div className="ml-3">
-              <p className="text-sm font-bold text-white leading-tight">
+            <div className="ml-3 min-w-0">
+              <p className="text-sm font-bold text-white leading-tight truncate">
                 {userName}
               </p>
-              <p className="text-xs text-white/60">{userEmail}</p>
+              <p className="text-xs text-white/60 truncate">{userEmail}</p>
             </div>
           </div>
           <button

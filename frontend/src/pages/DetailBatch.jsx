@@ -3,6 +3,7 @@ import { ArrowLeft, Archive, ClipboardList, Download } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { useParams, Link, useLocation } from 'react-router-dom';
+import Button from '../components/Button';
 import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -60,10 +61,10 @@ const DetailBatch = () => {
     return r.is_risk;
   });
 
-  const displayTitle = filterParam === 'tidak_sisip' ? 'Mahasiswa Tidak Sisip (Aman)' : 'Mahasiswa Beresiko (Sisip)';
+  const displayTitle = filterParam === 'tidak_sisip' ? 'Mahasiswa Tidak Sisip (Aman)' : 'Mahasiswa Berisiko (Sisip)';
   const emptyText = filterParam === 'tidak_sisip' 
     ? 'Tidak ada mahasiswa yang aman pada batch ini.' 
-    : 'Tidak ada mahasiswa yang ditandai beresiko pada batch ini.';
+    : 'Tidak ada mahasiswa yang ditandai berisiko pada batch ini.';
 
   const handleDownloadPDF = () => {
     const doc = new jsPDF();
@@ -112,14 +113,14 @@ const DetailBatch = () => {
         />
         
         <div className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-7xl mx-auto mb-6">
+          <div className="max-w-[96rem] mx-auto mb-6">
             <Link to="/history" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-primary transition-colors bg-white px-4 py-2 rounded-lg border border-border shadow-sm">
               <ArrowLeft className="h-4 w-4 mr-2" /> Kembali ke Log Riwayat
             </Link>
           </div>
 
           {/* Batch Metadata Header */}
-          <div className="max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden mb-8 p-6 lg:p-8 flex flex-col lg:flex-row justify-between items-start lg:items-center">
+          <div className="max-w-[96rem] mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden mb-8 p-6 lg:p-8 flex flex-col lg:flex-row justify-between items-start lg:items-center">
             <div>
               <h2 className="text-2xl font-bold text-secondary flex items-center mb-2">
                 <Archive className="h-6 w-6 mr-2 text-primary" />
@@ -134,7 +135,7 @@ const DetailBatch = () => {
                 <p className="text-2xl font-bold text-secondary">{batch.total_records}</p>
               </div>
               <div className="bg-red-50 border border-red-100 rounded-xl px-6 py-4 text-center">
-                <p className="text-xs text-red-800 uppercase font-semibold mb-1">Beresiko</p>
+                <p className="text-xs text-red-800 uppercase font-semibold mb-1">Berisiko</p>
                 <p className="text-2xl font-bold text-red-600">{batch.at_risk}</p>
               </div>
               <div className="bg-red-50 border border-red-100 rounded-xl px-6 py-4 text-center">
@@ -145,7 +146,7 @@ const DetailBatch = () => {
           </div>
 
           {/* Read-Only Prediction Table Container */}
-          <div className="w-full max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="w-full max-w-[96rem] mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
             <div className="px-6 py-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
               <div>
                 <h2 className="text-lg font-bold text-secondary flex items-center">
@@ -154,10 +155,10 @@ const DetailBatch = () => {
                 </h2>
               </div>
               
-              <button onClick={handleDownloadPDF} className="px-5 py-2.5 bg-white text-secondary font-bold border border-border rounded-lg hover:bg-gray-50 transition-colors shadow-sm whitespace-nowrap flex items-center">
-                <Download className="h-4 w-4 mr-2" />
-                Unduh Ulang Laporan PDF
-              </button>
+              <Button variant="secondary" onClick={handleDownloadPDF}>
+                <Download className="h-4 w-4" />
+                Unduh Laporan
+              </Button>
             </div>
 
             <div className="overflow-x-auto">

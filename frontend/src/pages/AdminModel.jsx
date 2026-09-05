@@ -8,10 +8,12 @@ import {
   Loader2,
   BarChart2,
   Star,
-  Download,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
+import Button from "../components/Button";
+import { PRODI_LIST } from "../lib/prodi";
 import axios from "axios";
 
 // Saklar tampilan hyperparameter (Max Epochs, Batch Size, Learning Rate,
@@ -46,6 +48,7 @@ const AdminModel = () => {
 
   // State Manajemen Registri Riwayat Model
   const [modelHistory, setModelHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [modelMetrics, setModelMetrics] = useState(null);
 
   useEffect(() => {
@@ -53,52 +56,20 @@ const AdminModel = () => {
   }, []);
 
   const fetchModelHistory = async () => {
+    setHistoryLoading(true);
     try {
       const response = await axios.get("/api/models");
       setModelHistory(response.data);
     } catch (err) {
       console.error("Gagal mengambil data registri model:", err);
     }
+    setHistoryLoading(false);
   };
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
       setError("");
-    }
-  };
-
-  // Template data latih: header sheet TRAIN_SEM3 (kolom fitur + kolom Label
-  // target) mengikuti model aktif, terisi 8 baris contoh. Kalau prodi belum
-  // dipilih atau belum punya model, backend memakai model aktif prodi lain.
-  const handleDownloadTrainTemplate = async () => {
-    setError("");
-    try {
-      const params = new URLSearchParams();
-      if (prodi) params.set("prodi", prodi);
-      if (angkatan) params.set("angkatan", angkatan);
-      const qs = params.toString();
-      const response = await axios.get(
-        `/api/template/train${qs ? `?${qs}` : ""}`,
-        { responseType: "blob" },
-      );
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `template_latih_${(prodi || "informatika").toLowerCase().replace(/\s+/g, "_")}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      let message = "Gagal mengunduh template data latih.";
-      try {
-        const text = await err.response?.data?.text?.();
-        if (text) message = JSON.parse(text).error || message;
-      } catch {
-        // biarkan pesan bawaan
-      }
-      setError(message);
     }
   };
 
@@ -173,7 +144,11 @@ const AdminModel = () => {
       await axios.post(`/api/models/${modelId}/activate`);
       fetchModelHistory();
     } catch (err) {
-      alert("Gagal mengunci model aktif untuk prodi ini.");
+      setErrorMessage(
+        err.response?.data?.error ||
+          "Gagal mengaktifkan model untuk program studi ini.",
+      );
+      setShowErrorModal(true);
     }
   };
   return (
@@ -186,28 +161,27 @@ const AdminModel = () => {
       <div className="flex-1 flex flex-col overflow-y-auto">
         <Header
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          title="Panel Utama Admin: Master Model Sistem"
+          title="Master Model"
+          subtitle="Latih model per program studi dan tentukan model yang dipakai untuk prediksi."
         />
 
-        <main className="p-6 space-y-6 max-w-7xl w-full mx-auto">
+        <main className="p-6 space-y-6 max-w-[96rem] w-full mx-auto">
           {/* Form Unggah & Latih Ulang */}
           <div className="bg-surface p-6 rounded-2xl shadow-sm border border-border">
             <h2 className="text-xl font-bold flex items-center gap-2 mb-2">
-              <Cpu className="text-primary" /> Pembuatan & Eksperimen Model Baru
+              <Cpu className="text-primary" /> Latih Model Baru
             </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Silakan tentukan Program Studi sasaran, lalu unggah rekap
-              spreadsheet berkas akademis historis gabungan untuk melatih
-              kecerdasan buatan.
+            <p className="text-sm text-gray-500 mb-6">
+              Tentukan Program Studi sasaran, lalu unggah berkas data latih hasil
+              dari menu{" "}
+              <Link
+                to="/admin/preprocessing"
+                className="font-semibold text-primary hover:underline"
+              >
+                Preprocessing Data
+              </Link>{" "}
+              untuk melatih kecerdasan buatan.
             </p>
-
-            <button
-              type="button"
-              onClick={handleDownloadTrainTemplate}
-              className="mb-6 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary bg-primary/5 border border-primary/20 rounded-lg hover:bg-primary/10 transition"
-            >
-              <Download size={16} /> Unduh Template Data Latih (.xlsx)
-            </button>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div>
@@ -220,10 +194,11 @@ const AdminModel = () => {
                   className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
                 >
                   <option value="">-- Semua Prodi --</option>
-                  <option value="Informatika">Informatika</option>
-                  <option value="Matematika">Matematika</option>
-                  <option value="Teknik Mesin">Teknik Mesin</option>
-                  <option value="Teknik Elektro">Teknik Elektro</option>
+                  {PRODI_LIST.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -321,8 +296,10 @@ const AdminModel = () => {
               )}
             </div>
 
-            <div className="flex flex-col md:flex-row items-center gap-4">
-              <label className="w-full md:w-auto flex-1 flex flex-col items-center px-4 py-6 bg-background rounded-xl border-2 border-dashed border-gray-300 cursor-pointer hover:border-primary transition">
+            {/* items-end: sisi bawah tombol sejajar dengan sisi bawah kotak
+                unggah, tanpa memaksa tombol setinggi kotaknya. */}
+            <div className="flex flex-col md:flex-row md:items-end gap-4">
+              <label className="w-full md:w-auto flex-1 flex flex-col items-center justify-center px-4 py-6 bg-background rounded-xl border-2 border-dashed border-gray-300 cursor-pointer hover:border-primary transition">
                 <UploadIcon className="text-gray-400 mb-2" />
                 <span className="text-sm font-medium text-gray-600">
                   {file ? file.name : "Pilih Berkas Excel Data Latih (.xlsx)"}
@@ -335,14 +312,19 @@ const AdminModel = () => {
                 />
               </label>
 
-              <button
+              <Button
                 onClick={handleTrain}
                 disabled={loading}
-                className="w-full md:w-auto px-6 py-4 bg-primary text-white font-bold rounded-xl hover:bg-primary-dark transition disabled:opacity-50 flex items-center justify-center gap-2"
+                size="lg"
+                className="w-full md:w-auto shrink-0"
               >
-                {loading ? <Loader2 className="animate-spin" /> : <Database />}{" "}
-                Eksperimen Latih Model
-              </button>
+                {loading ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <Database size={18} />
+                )}
+                Latih Model
+              </Button>
             </div>
             {error && (
               <p className="text-red-500 text-sm mt-2 flex items-center gap-1">
@@ -354,33 +336,37 @@ const AdminModel = () => {
 
           <div className="bg-surface p-6 rounded-2xl shadow-sm border border-border min-h-[400px]">
             <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
-              <BarChart2 className="text-accent" /> Hasil Modeling & Kontrol
-              Akses User
+              <BarChart2 className="text-accent" /> Registri Model
             </h2>
             <p className="text-sm text-gray-500 mb-4">
-              Tentukan model terbaik untuk masing-masing program studi yang akan
-              dikunci untuk melayani proses prediksi di sisi akun Dosen.
+              Pilih satu model aktif untuk tiap program studi. Model aktif itulah
+              yang dipakai saat dosen menjalankan prediksi.
             </p>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-border bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
-                    <th className="p-3">Nama/Versi Versi Model</th>
-                    <th className="p-3">Target Prodi</th>
-                    <th className="p-3">Waktu di Bangun Model</th>
-                    <th className="p-3">Skor Akurasi</th>
-                    <th className="p-3">Skor Loss</th>
-                    <th className="p-3 text-center">
-                      Status Penggunaan Sistem
-                    </th>
+                    <th scope="col" className="p-3">Nama Versi Model</th>
+                    <th scope="col" className="p-3">Program Studi</th>
+                    <th scope="col" className="p-3">Waktu Dilatih</th>
+                    <th scope="col" className="p-3">Akurasi</th>
+                    <th scope="col" className="p-3">Loss</th>
+                    <th scope="col" className="p-3 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm divide-y divide-border">
-                  {modelHistory.length === 0 ? (
+                  {historyLoading ? (
                     <tr>
-                      <td colSpan="6" className="p-4 text-center text-gray-400">
-                        Belum ada riwayat model hasil eksperimen prodi yang tersimpan.
+                      <td colSpan="6" className="p-4 text-center text-gray-500">
+                        Memuat registri model...
+                      </td>
+                    </tr>
+                  ) : modelHistory.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="p-4 text-center text-gray-500">
+                        Belum ada model yang tersimpan. Latih model pertama Anda di
+                        panel atas.
                       </td>
                     </tr>
                   ) : (
@@ -408,16 +394,17 @@ const AdminModel = () => {
                         <td className="p-3 text-center">
                           {model.is_active ? (
                             <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1.5 rounded-full inline-flex items-center gap-1">
-                              <Star size={12} fill="currentColor" /> Dikunci
-                              untuk Prediksi User
+                              <Star size={12} fill="currentColor" /> Model Aktif
                             </span>
                           ) : (
-                            <button
+                            <Button
+                              variant="secondary"
+                              size="sm"
                               onClick={() => handleActivateModel(model.id)}
-                              className="text-xs bg-white hover:bg-primary hover:text-white px-3 py-1.5 rounded-lg border border-gray-300 font-medium transition shadow-sm"
+                              aria-label={`Aktifkan model ${model.version_name}`}
                             >
-                              Gunakan Model Ini
-                            </button>
+                              Aktifkan
+                            </Button>
                           )}
                         </td>
                       </tr>
@@ -435,7 +422,7 @@ const AdminModel = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-surface rounded-2xl shadow-xl border border-border px-8 py-6 flex flex-col items-center w-full max-w-md">
             <h3 className="text-lg font-bold text-secondary mb-4">
-              Menyaring Data & Melatih Model CNN per Prodi...
+              Melatih model, mohon tunggu...
             </h3>
             <div className="w-full bg-gray-200 rounded-full h-4 mb-2 overflow-hidden border border-gray-300">
               <div
@@ -459,15 +446,16 @@ const AdminModel = () => {
                 <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
               <h3 className="text-xl font-bold text-secondary mb-2">
-                Eksperimen Prodi Berhasil!
+                Model Berhasil Dilatih
               </h3>
               <p className="text-gray-600 mb-4 text-sm">
-                Model spesifik program studi Anda telah dicatatkan secara aman.
+                Model sudah tersimpan di registri. Aktifkan lewat tabel di bawah
+                agar dipakai untuk prediksi.
               </p>
               {modelMetrics && (
                 <div className="bg-background p-3 rounded-xl border border-border w-full mb-6 grid grid-cols-2 text-left gap-2">
                   <div>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-500">
                       Akurasi Validasi:
                     </span>
                     <p className="text-md font-bold text-green-600">
@@ -475,7 +463,7 @@ const AdminModel = () => {
                     </p>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-500">
                       Tingkat Kesalahan (Loss):
                     </span>
                     <p className="text-md font-bold text-red-500">
@@ -484,12 +472,9 @@ const AdminModel = () => {
                   </div>
                 </div>
               )}
-              <button
-                onClick={() => setShowSuccessModal(false)}
-                className="w-full py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition shadow-sm"
-              >
+              <Button size="lg" block onClick={() => setShowSuccessModal(false)}>
                 Tutup
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -504,15 +489,12 @@ const AdminModel = () => {
                 <AlertTriangle className="h-8 w-8 text-red-600" />
               </div>
               <h3 className="text-xl font-bold text-secondary mb-2">
-                Pelatihan Dihentikan
+                Proses Dihentikan
               </h3>
               <p className="text-gray-600 mb-6 text-sm">{errorMessage}</p>
-              <button
-                onClick={() => setShowErrorModal(false)}
-                className="w-full py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition shadow-sm"
-              >
+              <Button variant="danger" size="lg" block onClick={() => setShowErrorModal(false)}>
                 Tutup
-              </button>
+              </Button>
             </div>
           </div>
         </div>

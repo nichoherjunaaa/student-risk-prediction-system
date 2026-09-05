@@ -12,9 +12,9 @@ import History from "./pages/History";
 import DetailStudent from "./pages/DetailStudent";
 import DetailBatch from "./pages/DetailBatch";
 import AdminModel from "./pages/AdminModel";
+import AdminPreprocessing from "./pages/AdminPreprocessing";
 import AdminUsers from "./pages/AdminUsers";
 import AdminUserForm from "./pages/AdminUserForm";
-import AdminRoles from "./pages/AdminRoles";
 import DetailCourses from "./pages/DetailCourses";
 import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
@@ -53,11 +53,11 @@ function App() {
         <Route path="/courses/:nim" element={<ProtectedRoute><DetailCourses /></ProtectedRoute>} />
         <Route path="/batch/:id" element={<ProtectedRoute><DetailBatch /></ProtectedRoute>} />
 
+        <Route path="/admin/preprocessing" element={<ProtectedRoute adminOnly><AdminPreprocessing /></ProtectedRoute>} />
         <Route path="/admin/model" element={<ProtectedRoute adminOnly><AdminModel /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
         <Route path="/admin/users/new" element={<ProtectedRoute adminOnly><AdminUserForm /></ProtectedRoute>} />
         <Route path="/admin/users/edit/:id" element={<ProtectedRoute adminOnly><AdminUserForm /></ProtectedRoute>} />
-        <Route path="/admin/roles" element={<ProtectedRoute adminOnly><AdminRoles /></ProtectedRoute>} />
 
         {/* Error Pages */}
         <Route path="/500" element={<ServerError />} />
