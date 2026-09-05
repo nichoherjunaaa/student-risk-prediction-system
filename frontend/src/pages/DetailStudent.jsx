@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, User, AlertTriangle, BookOpen, TrendingDown, Layers, ShieldAlert, XCircle, Printer, Mail, GraduationCap } from 'lucide-react';
+import { ArrowLeft, User, AlertTriangle, ShieldCheck, BookOpen, TrendingDown, Layers, Printer, GraduationCap } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { useParams, Link, useLocation } from 'react-router-dom';
+import Button, { ButtonLink } from '../components/Button';
 import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -57,7 +58,10 @@ const DetailStudent = () => {
     );
   }
 
-  const { details = {}, prediction, is_risk } = studentData;
+  const { details = {}, prediction } = studentData;
+  // SQLite mengembalikan kolom BOOLEAN sebagai 0/1. Tanpa dijadikan boolean,
+  // `{is_risk && ...}` merender angka 0 di layar untuk mahasiswa tidak sisip.
+  const is_risk = Boolean(studentData.is_risk);
   const { 
     nama = '-', 
     prodi = '-', 
@@ -137,13 +141,13 @@ const DetailStudent = () => {
         />
         
         <div className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-7xl mx-auto mb-6">
+          <div className="max-w-[96rem] mx-auto mb-6">
             <Link to={batchId ? `/batch/${batchId}` : "/results"} className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-primary transition-colors bg-white px-4 py-2 rounded-lg border border-border shadow-sm">
               <ArrowLeft className="h-4 w-4 mr-2" /> {batchId ? "Kembali ke Daftar Mahasiswa" : "Kembali ke Hasil Prediksi"}
             </Link>
           </div>
 
-          <div className="max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="max-w-[96rem] mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
             {/* Profile Header */}
             <div className={`px-8 py-10 text-surface flex flex-col md:flex-row items-center md:items-start justify-between relative overflow-hidden ${is_risk ? 'bg-primary' : 'bg-green-700'}`}>
               <div className="absolute -right-20 -top-20 h-64 w-64 bg-white opacity-5 rounded-full blur-2xl"></div>
@@ -159,9 +163,13 @@ const DetailStudent = () => {
                     <span className="bg-black/20 px-3 py-1 rounded-md text-sm font-medium flex items-center">
                       <GraduationCap className="h-4 w-4 mr-1"/> {prodi}
                     </span>
-                    {is_risk && (
+                    {is_risk ? (
                       <span className="flex items-center text-sm font-medium text-accent">
-                        <AlertTriangle className="h-4 w-4 mr-1" /> Ditandai Beresiko
+                        <AlertTriangle className="h-4 w-4 mr-1" /> Ditandai Berisiko
+                      </span>
+                    ) : (
+                      <span className="flex items-center text-sm font-medium text-green-200">
+                        <ShieldCheck className="h-4 w-4 mr-1" /> Tidak Berisiko
                       </span>
                     )}
                   </div>
@@ -230,7 +238,7 @@ const DetailStudent = () => {
                 </div>
               </div>
 
-              <p className="text-xs text-gray-400 italic mb-8 -mt-4">
+              <p className="text-xs text-gray-500 italic mb-8 -mt-4">
                 Catatan: IPK dan Total SKS ditampilkan sebagai konteks akademik. Model
                 prediksi saat ini tidak memakai nilai ini sebagai fitur — keputusan
                 didasarkan pada pola nilai mata kuliah.
@@ -238,12 +246,12 @@ const DetailStudent = () => {
 
 
               <div className="pt-6 mt-6 border-t border-border flex flex-wrap gap-3">
-                <button onClick={handlePrintProfile} className="px-5 py-2.5 bg-primary text-white font-bold border border-primary-dark rounded-lg shadow-sm hover:bg-primary-dark transition-colors flex items-center">
-                  <Printer className="h-4 w-4 mr-2" /> Download Detail Profil (PDF)
-                </button>
-                <Link to={`/courses/${nim}${batchId ? `?batch=${batchId}` : ''}`} className="px-5 py-2.5 bg-white text-secondary font-bold border border-border rounded-lg shadow-sm hover:bg-gray-50 transition-colors flex items-center">
-                  <BookOpen className="h-4 w-4 mr-2" /> Detail Matakuliah
-                </Link>
+                <Button onClick={handlePrintProfile}>
+                  <Printer className="h-4 w-4" /> Unduh Profil (PDF)
+                </Button>
+                <ButtonLink variant="secondary" to={`/courses/${nim}${batchId ? `?batch=${batchId}` : ''}`}>
+                  <BookOpen className="h-4 w-4" /> Detail Mata Kuliah
+                </ButtonLink>
               </div>
 
             </div>

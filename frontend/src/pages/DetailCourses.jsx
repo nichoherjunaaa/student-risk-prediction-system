@@ -70,13 +70,13 @@ const DetailCourses = () => {
       
       <main className="flex-1 flex flex-col h-full relative overflow-hidden">
         <Header 
-          title="Detail Matakuliah" 
-          subtitle={`Rincian SKS & Matakuliah untuk ${nama}`} 
+          title="Detail Mata Kuliah" 
+          subtitle={`Rincian SKS & mata kuliah untuk ${nama}`} 
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
         />
 
         <div className="flex-1 overflow-y-auto p-8 relative z-10">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-[96rem] mx-auto">
             <div className="mb-6">
               <Link to={`/detail/${nim}${batchId ? `?batch=${batchId}` : ''}`} className="inline-flex items-center text-gray-500 hover:text-primary transition-colors font-medium">
                 <ArrowLeft className="h-5 w-5 mr-2" /> Kembali ke Profil Mahasiswa
@@ -141,7 +141,7 @@ const DetailCourses = () => {
                   ) : (
                     <div className="h-full flex items-center justify-center flex-col text-red-700/60 py-10">
                       <XCircle className="h-12 w-12 mb-3 opacity-50" />
-                      <p className="font-medium">Tidak ada riwayat matakuliah tidak lulus.</p>
+                      <p className="font-medium">Tidak ada mata kuliah yang belum lulus.</p>
                     </div>
                   )}
                 </div>

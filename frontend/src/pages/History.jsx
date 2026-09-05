@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Activity, List, CheckCircle, XCircle } from 'lucide-react';
+import { TrendingUp, Activity, List } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import { Link } from 'react-router-dom';
+import { ButtonLink } from '../components/Button';
 import axios from 'axios';
 
 const History = () => {
@@ -38,20 +38,25 @@ const History = () => {
         />
         
         <div className="flex-1 overflow-y-auto p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 max-w-[96rem] mx-auto">
             
             {/* Card 1: Batch Comparison */}
             <div className="bg-surface rounded-2xl p-6 border border-border shadow-sm flex flex-col h-64">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold text-secondary flex items-center">
                   <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-                  Tren Beresiko (3 Batch Terakhir)
+                  Tren Berisiko
                 </h3>
-                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded-md">2026</span>
+                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded-md">
+                  3 batch terakhir
+                </span>
               </div>
-              
+
               <div className="flex-1 flex flex-col justify-end space-y-4">
-                {batches.slice(0, 3).map((batch, index) => {
+                {loading && (
+                  <div className="text-sm text-gray-500">Memuat data batch...</div>
+                )}
+                {!loading && batches.slice(0, 3).map((batch, index) => {
                   const riskPercentage = batch.total_records > 0 ? Math.round((batch.at_risk / batch.total_records) * 100) : 0;
                   return (
                     <div key={index} className="flex items-center">
@@ -86,11 +91,10 @@ const History = () => {
                   </div>
                   <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Total Batch</p>
                 </div>
+                {/* Dulu di sini ada cincin progres yang selalu terisi 75% apa pun
+                    datanya — angka hiasan yang menyesatkan, jadi dihapus. */}
                 <div className="text-center">
-                  <div className="h-20 w-20 rounded-full border-4 border-blue-100 flex items-center justify-center mx-auto mb-3 relative">
-                    <svg className="absolute inset-0 h-full w-full transform -rotate-90 text-blue-500" viewBox="0 0 36 36">
-                      <path strokeDasharray="75, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"></path>
-                    </svg>
+                  <div className="h-20 w-20 rounded-full border-4 border-blue-100 flex items-center justify-center mx-auto mb-3">
                     <span className="text-2xl font-bold text-blue-600">{totalRecords > 1000 ? (totalRecords/1000).toFixed(1) + 'k' : totalRecords}</span>
                   </div>
                   <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Data Diproses</p>
@@ -101,7 +105,7 @@ const History = () => {
           </div>
 
           {/* History Logs Table */}
-          <div className="w-full max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="w-full max-w-[96rem] mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden">
             <div className="px-6 py-5 border-b border-border bg-gray-50/50">
               <h2 className="text-lg font-bold text-secondary flex items-center">
                 <List className="h-5 w-5 mr-2 text-primary" />
@@ -136,9 +140,14 @@ const History = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Link to={`/batch/${batch.id}`} className="inline-flex items-center px-3 py-1.5 text-xs font-bold text-primary bg-white border border-border rounded-md hover:bg-gray-50 hover:text-primary-dark transition-colors shadow-sm">
-                          Tinjau Ulang Batch
-                        </Link>
+                        <ButtonLink
+                          to={`/batch/${batch.id}`}
+                          variant="secondary"
+                          size="sm"
+                          aria-label={`Tinjau batch ${batch.batch_name}`}
+                        >
+                          Tinjau Batch
+                        </ButtonLink>
                       </td>
                     </tr>
                   ))}

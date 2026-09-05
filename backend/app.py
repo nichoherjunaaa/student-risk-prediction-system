@@ -7,7 +7,10 @@ os.environ.setdefault('PYTHONHASHSEED', '42')
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
 
 import io
+import re
 import json
+import time
+import uuid
 import hmac
 import random
 import hashlib
@@ -18,6 +21,7 @@ import functools
 import numpy as np
 import pandas as pd
 from flask import Flask, request, jsonify, send_file
+from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -28,6 +32,8 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.utils import to_categorical
+
+from preprocessing import PreprocessError, build_training_table, preview_records
 
 tf.config.threading.set_inter_op_parallelism_threads(1)
 tf.config.threading.set_intra_op_parallelism_threads(1)
@@ -50,6 +56,12 @@ DATA_DIR = os.environ.get('SISIP_DATA_DIR', os.path.dirname(os.path.abspath(__fi
 DB_FILE = os.environ.get('SISIP_DB_FILE', os.path.join(DATA_DIR, 'sisip_database.db'))
 MODEL_DIR = os.environ.get('SISIP_MODEL_DIR', os.path.join(DATA_DIR, 'saved_models'))
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+# Hasil preprocessing bersifat sementara: dibuat untuk diunduh admin lalu
+# diunggah kembali di menu Master Model.
+PREPROCESS_DIR = os.environ.get('SISIP_PREPROCESS_DIR', os.path.join(DATA_DIR, 'preprocessed'))
+PREPROCESS_TTL = int(os.environ.get('SISIP_PREPROCESS_TTL', str(24 * 3600)))
+os.makedirs(PREPROCESS_DIR, exist_ok=True)
 
 # Default seeded admin credentials (override in production via env).
 DEFAULT_ADMIN_EMAIL = os.environ.get('SISIP_ADMIN_EMAIL', 'admin@gmail.com')
@@ -404,6 +416,19 @@ TEMPLATE_IDENTITY_COLS = [
     'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3',
 ]
 
+# Kolom identitas dan kolom rekap (IPK/SKS) hanya dipakai untuk penyaringan dan
+# pelaporan, tidak pernah menjadi fitur model. Dituliskan sebagai aturan, bukan
+# daftar tetap, supaya berkas dengan batas semester berbeda (IPK 4, Total SKS 4,
+# dan seterusnya) tetap tertangani tanpa mengubah kode.
+TRAIN_ID_COLS = ('NIM', 'Nomor PMB', 'Nomor Pendaftaran', 'Nama', 'Prodi', 'Angkatan', 'Semester')
+_REPORTING_COL_RE = re.compile(r'^(IPK|IPS|Total SKS|SKS Lulus|SKS Tidak Lulus)\s*\d*$',
+                               re.IGNORECASE)
+
+
+def non_feature_columns(columns):
+    return [c for c in columns
+            if c in TRAIN_ID_COLS or _REPORTING_COL_RE.match(str(c).strip())]
+
 # Kolom biodata mahasiswa yang dienkode tapi bukan nilai mata kuliah (dipakai untuk
 # membedakan "isi dengan nama provinsi/sekolah" vs "isi dengan huruf mutu" saat
 # membuat contoh data template).
@@ -470,20 +495,7 @@ def _active_model_base(prodi=None):
     return base
 
 
-def _risk_label(label_classes, aman):
-    """Pilih nilai kolom Label untuk baris contoh: profil kuat -> kelas 'tidak
-    berisiko', profil lemah -> kelas 'berisiko'. Kelas berisiko dikenali sama
-    seperti di /api/predict (lihat is_risk)."""
-    classes = [str(c) for c in label_classes]
-    risk = next((c for c in classes
-                 if c.upper() == 'SISIP' or 'TIDAK LOLOS' in c.upper()
-                 or c == '1' or 'AT RISK' in c.upper()), classes[0])
-    aman_cls = next((c for c in classes if c != risk), risk)
-    return aman_cls if aman else risk
-
-
-def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkatan, semester,
-                       label_classes=None):
+def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkatan, semester):
     """Contoh data siap-pakai untuk template, diturunkan dari statistik model itu
     sendiri (scaler.mean_ / scaler.scale_) supaya nilainya berada di rentang yang
     memang pernah dilihat model.
@@ -492,7 +504,6 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
     kolom nilai tes ternyata berskala 0-10, sehingga angka karangan 35-90 menjadi
     +16..+28 sigma dan mendorong SEMUA prediksi ke satu kelas. Setiap baris digeser
     k*sigma dari rata-rata: k negatif = profil kuat, k positif = profil lemah."""
-    rng = random.Random(20230903)  # seed tetap: isi contoh sama setiap diunduh
     means = getattr(scaler, 'mean_', None)
     scales = getattr(scaler, 'scale_', None)
     feat_index = {c: i for i, c in enumerate(feature_cols)}
@@ -504,7 +515,6 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
     rows = []
     for idx, nama in enumerate(_SAMPLE_NAMES, start=1):
         k = profil_k[(idx - 1) % len(profil_k)]
-        aman = k <= 0
         row = {}
         for col in cols:
             if col == 'NIM':
@@ -519,13 +529,10 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
                 row[col] = angkatan
             elif col == 'Semester':
                 row[col] = semester
-            elif col == 'Label' and label_classes is not None:
-                row[col] = _risk_label(label_classes, aman)
-            elif col.startswith('IPK'):
-                # Hanya untuk laporan; model tidak memakai kolom ini.
-                row[col] = round(rng.uniform(3.00, 3.70), 2) if aman else round(rng.uniform(1.60, 2.30), 2)
-            elif col == 'Total SKS 3':
-                row[col] = rng.choice([54, 57, 60]) if aman else rng.choice([30, 36, 42])
+            elif col.startswith('IPK') or col.startswith('Total SKS'):
+                # Diisi belakangan dari huruf mutu baris ini — lihat catatan di
+                # bawah loop. Tidak boleh diacak sendiri.
+                row[col] = None
             elif col in feat_index and means is not None and scales is not None:
                 i = feat_index[col]
                 target = float(means[i]) + k * float(scales[i])
@@ -543,8 +550,37 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
                 row[col] = str(classes[idx % len(classes)]) if classes else ''
             else:
                 row[col] = 0
+
+        _isi_rekap_akademik(row)
         rows.append(row)
     return rows
+
+
+# Bobot huruf mutu untuk menghitung IPK contoh. Nilai di luar daftar (mis. 'T')
+# dianggap tidak lulus dan berbobot 0.
+_GRADE_POINTS = {
+    'A': 4.0, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7,
+    'C+': 2.3, 'C': 2.0, 'C-': 1.7, 'D+': 1.3, 'D': 1.0, 'D-': 0.7,
+    'E': 0.0, 'F': 0.0, 'T': 0.0,
+}
+_GRADE_FAIL = {'D+', 'D', 'D-', 'E', 'F', 'T'}
+_SKS_PER_MATKUL = 3  # asumsi yang sama dipakai /api/predict saat menyusun details
+
+
+def _isi_rekap_akademik(row):
+    """Hitung kolom IPK/Total SKS contoh dari huruf mutu di baris yang sama.
+
+    Sebelumnya kolom ini diisi angka acak berdasarkan 'profil kuat/lemah',
+    terpisah dari huruf mutu yang dihasilkan dari statistik model. Akibatnya
+    satu baris bisa menampilkan IPK 1.63 padahal nilai mata kuliahnya mayoritas
+    A/B — pembaca lalu menyimpulkan prediksinya keliru, padahal justru angka
+    IPK-nya yang mengada-ada. Sekarang keduanya berasal dari sumber yang sama."""
+    huruf = [str(v).strip().upper() for v in row.values() if str(v).strip().upper() in _GRADE_POINTS]
+    ipk = round(sum(_GRADE_POINTS[g] for g in huruf) / len(huruf), 2) if huruf else 0
+    sks_lulus = sum(_SKS_PER_MATKUL for g in huruf if g not in _GRADE_FAIL)
+    for col in row:
+        if row[col] is None:
+            row[col] = sks_lulus if col.startswith('Total SKS') else ipk
 
 
 class _TemplateError(Exception):
@@ -569,10 +605,6 @@ def _load_template_model(prodi_param):
     try:
         scaler = joblib.load(f"{base}_scaler.pkl")
         encoders = joblib.load(f"{base}_encoders.pkl")
-        try:
-            label_classes = list(joblib.load(f"{base}_ley.pkl").classes_)
-        except Exception:
-            label_classes = ['SISIP', 'TIDAK SISIP']
     except Exception as load_err:
         raise _TemplateError(f"Gagal membaca kolom dari model aktif: {load_err}", 500)
 
@@ -585,8 +617,7 @@ def _load_template_model(prodi_param):
     model_prodi_label = resolved_prodi or prodi_label
     return {
         'feature_cols': feature_cols, 'encoders': encoders, 'scaler': scaler,
-        'label_classes': label_classes, 'prodi_label': prodi_label,
-        'model_prodi_label': model_prodi_label,
+        'prodi_label': prodi_label, 'model_prodi_label': model_prodi_label,
     }
 
 
@@ -630,36 +661,113 @@ def download_predict_template():
         f'template_prediksi_{m["model_prodi_label"].lower().replace(" ", "_")}.xlsx')
 
 
-# Kolom ekor sheet TRAIN_SEM3 (setelah kolom fitur). Angkatan/IPK/SKS hanya untuk
-# pelaporan — pipeline training membuangnya; Label adalah target yang wajib diisi.
-TEMPLATE_TRAIN_TAIL_COLS = ['Angkatan', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3', 'Label']
+# ---------------------------------------------------------------------------
+# Preprocessing: gabungkan berkas PMB + akademik menjadi satu berkas data latih.
+# ---------------------------------------------------------------------------
+
+_JOB_ID_RE = re.compile(r'^[0-9a-f]{32}$')
 
 
-@app.route('/api/template/train', methods=['GET'])
+def _slug(value):
+    return re.sub(r'[^a-z0-9]+', '_', str(value).lower()).strip('_') or 'prodi'
+
+
+def _prune_preprocess_dir():
+    """Buang hasil preprocessing lama supaya folder kerja tidak menggelembung.
+
+    Folder dibuat ulang di sini, bukan hanya sekali saat impor: folder kerja bisa
+    hilang saat server sedang jalan (dibersihkan manual, volume di-remount), dan
+    dulu itu membuat endpoint gagal dengan 500 HTML — bukan pesan JSON."""
+    os.makedirs(PREPROCESS_DIR, exist_ok=True)
+    batas = time.time() - PREPROCESS_TTL
+    for name in os.listdir(PREPROCESS_DIR):
+        path = os.path.join(PREPROCESS_DIR, name)
+        try:
+            if os.path.isfile(path) and os.path.getmtime(path) < batas:
+                os.remove(path)
+        except OSError:
+            pass
+
+
+@app.route('/api/preprocess', methods=['POST'])
 @require_role('admin')
-def download_train_template():
-    """Excel template untuk mengunggah data latih historis di menu Master Model.
-    Sama seperti template prediksi, tetapi memakai nama sheet TRAIN_SEM3 dan
-    menambahkan kolom Label (target) yang sudah terisi contoh sesuai gradasi
-    profil tiap baris."""
-    prodi_param = request.args.get('prodi') or None
-    angkatan_param = request.args.get('angkatan') or TEMPLATE_DEFAULT_ANGKATAN
+def run_preprocess():
+    """Gabungkan berkas PMB dan berkas akademik menjadi satu tabel siap latih.
+
+    Keduanya diasumsikan berisi satu program studi. Peran tiap sheet dikenali
+    dari susunan kolomnya, jadi berkas dengan satu sheet maupun banyak sheet
+    sama-sama diterima."""
+    berkas_pmb = request.files.get('file_pmb')
+    berkas_akademik = request.files.get('file_akademik')
+    if not berkas_pmb or not berkas_akademik:
+        return jsonify({'error': 'Berkas PMB dan berkas akademik wajib diunggah keduanya.'}), 400
 
     try:
-        m = _load_template_model(prodi_param)
-    except _TemplateError as err:
-        return jsonify({'error': str(err)}), err.status
+        hasil = build_training_table(
+            berkas_pmb, berkas_akademik,
+            prodi=request.form.get('prodi') or None,
+            max_semester=request.form.get('semester', 3),
+        )
+    except PreprocessError as err:
+        return jsonify({'error': str(err)}), 400
+    except Exception as err:
+        return jsonify({'error': f'Gagal memproses berkas: {err}'}), 400
 
-    lead = ['NIM', 'Nomor PMB']
-    cols = lead + [c for c in m['feature_cols'] if c not in lead] + TEMPLATE_TRAIN_TAIL_COLS
-    rows = _build_sample_rows(cols, m['feature_cols'], m['encoders'], m['scaler'],
-                              m['prodi_label'], angkatan_param, TEMPLATE_DEFAULT_SEMESTER,
-                              label_classes=m['label_classes'])
-    df = pd.DataFrame(rows, columns=cols)
+    job_id = uuid.uuid4().hex
+    sheet_name = f'TRAIN_SEM{hasil.max_semester}'
+    nama_berkas = f'data_latih_{_slug(hasil.prodi)}_sem{hasil.max_semester}.xlsx'
 
-    return _template_xlsx_response(
-        df, 'TRAIN_SEM3',
-        f'template_latih_{m["model_prodi_label"].lower().replace(" ", "_")}.xlsx')
+    # Penulisan berkas ikut ditangani: kegagalan menulis (folder hilang, disk
+    # penuh, batas kolom Excel) harus tetap membalas JSON, bukan halaman 500.
+    try:
+        _prune_preprocess_dir()
+        with pd.ExcelWriter(os.path.join(PREPROCESS_DIR, f'{job_id}.xlsx'),
+                            engine='openpyxl') as writer:
+            hasil.df.to_excel(writer, index=False, sheet_name=sheet_name)
+        with open(os.path.join(PREPROCESS_DIR, f'{job_id}.json'), 'w', encoding='utf-8') as fp:
+            json.dump({'filename': nama_berkas, 'prodi': hasil.prodi,
+                       'sheet': sheet_name, 'report': hasil.report}, fp)
+    except Exception as err:
+        return jsonify({'error': 'Data berhasil diproses tetapi gagal disimpan di server: '
+                                 f'{err}'}), 500
+
+    return jsonify({
+        'job_id': job_id,
+        'filename': nama_berkas,
+        'download_url': f'/api/preprocess/{job_id}/download',
+        'sheet': sheet_name,
+        'prodi': hasil.prodi,
+        'semester': hasil.max_semester,
+        'columns': list(hasil.df.columns),
+        'preview': preview_records(hasil.df, 8),
+        'report': hasil.report,
+    }), 200
+
+
+@app.route('/api/preprocess/<job_id>/download', methods=['GET'])
+@require_role('admin')
+def download_preprocess_result(job_id):
+    if not _JOB_ID_RE.match(job_id or ''):
+        return jsonify({'error': 'Kode hasil preprocessing tidak valid.'}), 400
+
+    path = os.path.join(PREPROCESS_DIR, f'{job_id}.xlsx')
+    if not os.path.exists(path):
+        return jsonify({'error': 'Hasil preprocessing sudah kedaluwarsa. '
+                                 'Silakan jalankan ulang prosesnya.'}), 404
+
+    nama_berkas = 'data_latih.xlsx'
+    try:
+        with open(os.path.join(PREPROCESS_DIR, f'{job_id}.json'), encoding='utf-8') as fp:
+            nama_berkas = json.load(fp).get('filename', nama_berkas)
+    except (OSError, ValueError):
+        pass
+
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=nama_berkas,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
 
 
 @app.route('/api/preview', methods=['POST'])
@@ -745,8 +853,7 @@ def train_model():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-    drop_cols = ['NIM', 'Nomor PMB', 'Angkatan', 'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3']
-    df = df.drop(columns=[col for col in drop_cols if col in df.columns])
+    df = df.drop(columns=non_feature_columns(df.columns))
 
     target_col = "Label"
     if target_col not in df.columns:
@@ -1317,6 +1424,22 @@ def get_student(nim):
         student_data['details'] = {}
         
     return jsonify(student_data)
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(err):
+    """Endpoint /api/* selalu membalas JSON, termasuk saat terjadi galat yang
+    tidak tertangani. Sebelumnya Flask membalas halaman HTML 500, sehingga sisi
+    frontend hanya melihat pesan generik dan penyebab aslinya tak terlihat."""
+    if isinstance(err, HTTPException):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': err.description}), err.code
+        return err
+
+    app.logger.exception('Kesalahan tak tertangani pada %s', request.path)
+    if request.path.startswith('/api/'):
+        return jsonify({'error': f'Kesalahan internal server: {err}'}), 500
+    raise err
+
 
 @app.route('/api/health', methods=['GET'])
 def health():

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, AlertTriangle, TrendingUp, ClipboardList, Download } from 'lucide-react';
+import { Users, AlertTriangle, TrendingUp, Download, UploadCloud } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import Button, { ButtonLink } from '../components/Button';
+import { PRODI_LIST } from '../lib/prodi';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Chart from 'chart.js/auto';
 import axios from 'axios';
 import jsPDF from 'jspdf';
@@ -11,7 +13,7 @@ import autoTable from 'jspdf-autotable';
 const Results = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
-  const [data, setData] = useState(() => {
+  const [data] = useState(() => {
     if (location.state?.predictionData) {
       localStorage.setItem('lastPrediction', JSON.stringify(location.state.predictionData));
       return location.state.predictionData;
@@ -22,10 +24,11 @@ const Results = () => {
   const navigate = useNavigate();
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
-  const prodiToFilter = location.state?.prodi || data.prodi || localStorage.getItem('lastProdi') || 'Unknown';
+  // Jatuh ke prodi pertama, bukan 'Unknown': judul grafik "prodi Unknown" dan
+  // deretan tombol prodi yang tidak satu pun aktif hanya membingungkan.
+  const prodiToFilter =
+    location.state?.prodi || data.prodi || localStorage.getItem('lastProdi') || PRODI_LIST[0];
   const [selectedProdi, setSelectedProdi] = useState(prodiToFilter);
-
-  const PRODI_LIST = ['Informatika', 'Teknik Elektro', 'Matematika', 'Teknik Mesin'];
 
   useEffect(() => {
     localStorage.setItem('lastProdi', selectedProdi);
@@ -142,7 +145,8 @@ const Results = () => {
     
   }, [data, selectedProdi, navigate]);
 
-  const sisipRate = data.total > 0 ? ((data.atRisk / data.total) * 100).toFixed(1) : 0;
+  const hasPrediction = data.total > 0;
+  const sisipRate = hasPrediction ? ((data.atRisk / data.total) * 100).toFixed(1) : 0;
   const atRiskStudents = data.results.filter(r => r.isRisk);
 
   const handleDownloadPDF = () => {
@@ -185,19 +189,39 @@ const Results = () => {
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-background relative z-10">
         <Header 
           title="Hasil Prediksi" 
-          subtitle="Tinjau mahasiswa yang ditandai 'Beresiko' (Tidak Lolos Sisip Program)." 
+          subtitle="Ringkasan prediksi terakhir. Klik batang grafik untuk melihat daftar mahasiswanya."
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
         />
         
         <div className="flex-1 overflow-y-auto p-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 max-w-7xl mx-auto">
+          {!hasPrediction && (
+            <div className="mb-8 max-w-[96rem] mx-auto bg-surface rounded-2xl border border-border shadow-sm p-10 text-center">
+              <div className="h-14 w-14 rounded-full bg-primary/5 border border-primary/20 flex items-center justify-center mx-auto mb-4">
+                <UploadCloud className="h-7 w-7 text-primary" />
+              </div>
+              <h2 className="text-lg font-bold text-secondary mb-1">
+                Belum ada hasil prediksi di sesi ini
+              </h2>
+              <p className="text-sm text-gray-500 max-w-lg mx-auto mb-6">
+                Unggah berkas rekap nilai mahasiswa untuk menjalankan prediksi.
+                Grafik di bawah tetap menampilkan riwayat prediksi yang pernah
+                dijalankan per program studi.
+              </p>
+              <ButtonLink to="/upload" size="lg">
+                <UploadCloud className="h-4 w-4" /> Unggah Data
+              </ButtonLink>
+            </div>
+          )}
+
+          {hasPrediction && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 max-w-[96rem] mx-auto">
             <div className="bg-surface rounded-2xl p-6 border border-border shadow-sm flex items-center">
               <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mr-4 border border-blue-100">
                 <Users className="h-6 w-6 text-blue-600" />
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Diproses</p>
-                <h3 className="text-2xl font-bold text-secondary mt-1">{data.total} <span className="text-sm font-normal text-gray-400">mahasiswa</span></h3>
+                <h3 className="text-2xl font-bold text-secondary mt-1">{data.total} <span className="text-sm font-normal text-gray-500">mahasiswa</span></h3>
               </div>
             </div>
             
@@ -206,30 +230,35 @@ const Results = () => {
                 <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Ditandai "Beresiko"</p>
-                <h3 className="text-2xl font-bold text-red-600 mt-1">{data.atRisk} <span className="text-sm font-normal text-gray-400">mahasiswa</span></h3>
+                <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Ditandai Berisiko</p>
+                <h3 className="text-2xl font-bold text-red-600 mt-1">{data.atRisk} <span className="text-sm font-normal text-gray-500">mahasiswa</span></h3>
               </div>
             </div>
-            
+
+            {/* Kartu ketiga sengaja netral: dua kartu merah berdampingan sulit
+                dibedakan sekilas, padahal isinya jumlah vs persentase. */}
             <div className="bg-surface rounded-2xl p-6 border border-border shadow-sm flex items-center">
-              <div className="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center mr-4 border border-red-100">
-                <TrendingUp className="h-6 w-6 text-red-600" />
+              <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center mr-4 border border-border">
+                <TrendingUp className="h-6 w-6 text-secondary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Persentase Berpotensi Sisip</p>
-                <h3 className="text-2xl font-bold text-red-600 mt-1">{sisipRate}%</h3>
+                <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Persentase Berisiko</p>
+                <h3 className="text-2xl font-bold text-secondary mt-1">{sisipRate}%</h3>
               </div>
             </div>
           </div>
+          )}
 
-          <div className="flex justify-end mb-4 max-w-7xl mx-auto">
-             <button onClick={handleDownloadPDF} className="px-5 py-2.5 bg-primary text-white font-bold rounded-lg hover:bg-primary-dark transition-colors shadow-sm flex items-center">
-                <Download className="h-4 w-4 mr-2" />
-                Unduh Laporan Keseluruhan (PDF)
-              </button>
-          </div>
+          {hasPrediction && (
+            <div className="flex justify-end mb-4 max-w-[96rem] mx-auto">
+              <Button onClick={handleDownloadPDF}>
+                <Download className="h-4 w-4" />
+                Unduh Laporan
+              </Button>
+            </div>
+          )}
 
-          <div className="mb-8 w-full max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border p-6 relative overflow-hidden">
+          <div className="mb-8 w-full max-w-[96rem] mx-auto bg-surface rounded-2xl shadow-sm border border-border p-6 relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 relative z-10">
               <div>
                 <h2 className="text-xl font-bold text-secondary flex items-center tracking-tight">
@@ -262,55 +291,6 @@ const Results = () => {
             </div>
           </div>
 
-          {/* Daftar mahasiswa yang ditandai beresiko pada prediksi ini */}
-          <div className="w-full max-w-7xl mx-auto bg-surface rounded-2xl shadow-sm border border-border overflow-hidden mb-8">
-            <div className="px-6 py-5 border-b border-border bg-gray-50/50">
-              <h2 className="text-lg font-bold text-secondary flex items-center">
-                <ClipboardList className="h-5 w-5 mr-2 text-primary" />
-                Mahasiswa Ditandai Beresiko ({atRiskStudents.length})
-              </h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-gray-600">
-                <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-border">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold">NIM</th>
-                    <th className="px-6 py-4 font-semibold">Nama Mahasiswa</th>
-                    <th className="px-6 py-4 font-semibold">Prodi</th>
-                    <th className="px-6 py-4 font-semibold">Prediksi</th>
-                    <th className="px-6 py-4 font-semibold text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {atRiskStudents.map((s, idx) => (
-                    <tr key={s.nim || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                      <td className="px-6 py-4 font-medium text-secondary">{s.nim}</td>
-                      <td className="px-6 py-4">{s.nama || '-'}</td>
-                      <td className="px-6 py-4">{s.prodi || '-'}</td>
-                      <td className="px-6 py-4">
-                        <span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded">{s.prediction}</span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link
-                          to={data.batch_id ? `/detail/${s.nim}?batch=${data.batch_id}` : `/detail/${s.nim}`}
-                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-red-700 bg-red-100 border border-red-200 hover:bg-red-200 transition-colors"
-                        >
-                          Lihat Detail
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                  {atRiskStudents.length === 0 && (
-                    <tr className="bg-white">
-                      <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
-                        Tidak ada mahasiswa yang ditandai beresiko pada prediksi ini.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       </main>
     </div>

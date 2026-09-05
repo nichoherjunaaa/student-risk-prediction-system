@@ -1,19 +1,25 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   UploadCloud,
   BarChart2,
   AlertTriangle,
-  CheckCircle,
   Loader2,
   FileSpreadsheet,
+  Download,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
+import Button from "../components/Button";
+import { PRODI_LIST } from "../lib/prodi";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const Upload = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const templateMenuRef = useRef(null);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -59,34 +65,44 @@ const Upload = () => {
     }
   };
 
-  // Template selalu bisa diunduh: kalau Program Studi/Angkatan/Semester belum
-  // dipilih, backend memakai contoh default (Informatika, Angkatan 2023, Semester 3).
-  // Isi Prodi/Angkatan/Semester di dalam file harus sama dengan pilihan dropdown di
-  // halaman ini saat prediksi dijalankan — kalau beda, backend akan menyebutkan
-  // bagian mana yang tidak cocok.
-  const handleDownloadTemplate = async () => {
+  // Tutup menu template saat pengguna mengklik di luar area menu.
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (templateMenuRef.current && !templateMenuRef.current.contains(event.target)) {
+        setTemplateMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Setiap prodi punya model aktifnya sendiri, dan susunan kolom template
+  // mengikuti model itu. Karena itu prodi template dipilih eksplisit di sini,
+  // bukan diambil diam-diam dari dropdown filter di bawah. Angkatan & semester
+  // tetap ikut pilihan form supaya isi contohnya nyambung.
+  const handleDownloadTemplate = async (prodiTarget) => {
     setError("");
+    setTemplateMenuOpen(false);
     try {
       const params = new URLSearchParams();
-      if (prodi) params.set("prodi", prodi);
+      params.set("prodi", prodiTarget);
       if (angkatan) params.set("angkatan", angkatan);
       if (semester) params.set("semester", semester);
-      const qs = params.toString();
       const response = await axios.get(
-        `/api/template/predict${qs ? `?${qs}` : ""}`,
+        `/api/template/predict?${params.toString()}`,
         { responseType: "blob" },
       );
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.download = `template_prediksi_${(prodi || "informatika").toLowerCase().replace(/\s+/g, "_")}.xlsx`;
+      link.download = `template_prediksi_${prodiTarget.toLowerCase().replace(/\s+/g, "_")}.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
       // Backend membalas JSON error walau responseType blob, jadi perlu dibaca ulang
-      let message = "Gagal mengunduh template Excel.";
+      let message = `Gagal mengunduh template Excel untuk prodi ${prodiTarget}.`;
       try {
         const text = await err.response?.data?.text?.();
         if (text) message = JSON.parse(text).error || message;
@@ -166,44 +182,63 @@ const Upload = () => {
 
   return (
     <div className="bg-background font-sans text-secondary antialiased h-screen flex flex-col lg:flex-row overflow-hidden">
-      {/* Sidebar dipanggil dengan peran user/dosen agar menu kelola AI tidak mengintip */}
       <Sidebar
         isOpen={sidebarOpen}
         toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        role="user"
       />
 
       <div className="flex-1 flex flex-col overflow-y-auto">
         <Header
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          title="Analisis Evaluasi: Prediksi Mahasiswa Berpotensi Sisip"
+          title="Unggah Data"
+          subtitle="Jalankan prediksi sisip program dari berkas rekap nilai mahasiswa."
         />
 
-        <main className="p-6 space-y-6 max-w-7xl w-full mx-auto">
+        <main className="p-6 space-y-6 max-w-[96rem] w-full mx-auto">
           <div className="bg-surface p-6 rounded-2xl shadow-sm border border-border">
             <h2 className="text-xl font-bold flex items-center gap-2 mb-2">
-              <UploadCloud className="text-primary" /> Unggah Berkas Evaluasi
-              Baru
+              <UploadCloud className="text-primary" /> Unggah Berkas Rekap Nilai
             </h2>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <p className="text-sm text-gray-500 max-w-2xl">
-                Silakan tentukan parameter filter program studi dan masukkan file
-                rekap nilai mahasiswa untuk dianalisis oleh kecerdasan
-                buatan. Template Excel sudah berisi contoh data siap pakai —
-                pastikan kolom Prodi/Angkatan/Semester di dalamnya sama dengan
-                pilihan Anda di bawah ini.
+                Tentukan Program Studi, Angkatan, dan Semester, lalu unggah
+                berkas rekap nilai mahasiswa. Pastikan kolom
+                Prodi/Angkatan/Semester di dalam berkas sama dengan pilihan Anda
+                di bawah ini.
               </p>
-              <button
-                onClick={handleDownloadTemplate}
-                title={
-                  prodi
-                    ? `Unduh contoh template untuk prodi ${prodi}`
-                    : "Unduh contoh template (default: Informatika, Angkatan 2023, Semester 3)"
-                }
-                className="px-4 py-2 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition flex items-center gap-2 text-sm whitespace-nowrap"
-              >
-                Unduh Template Excel
-              </button>
+              <div className="relative shrink-0" ref={templateMenuRef}>
+                <Button
+                  variant="outline"
+                  onClick={() => setTemplateMenuOpen((open) => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={templateMenuOpen}
+                >
+                  <Download size={16} /> Unduh Template Excel
+                  <ChevronDown size={16} />
+                </Button>
+
+                {templateMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 mt-2 w-64 bg-surface border border-border rounded-xl shadow-lg py-1 z-20"
+                  >
+                    <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 border-b border-border">
+                      Pilih Program Studi
+                    </p>
+                    {PRODI_LIST.map((p) => (
+                      <button
+                        key={p}
+                        role="menuitem"
+                        onClick={() => handleDownloadTemplate(p)}
+                        className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left text-secondary hover:bg-gray-50 transition-colors"
+                      >
+                        {p}
+                        {prodi === p && <Check size={16} className="text-primary" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Sektor Filter Dropdown Sesuai Aturan Main Bawaan */}
@@ -218,10 +253,11 @@ const Upload = () => {
                   className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                 >
                   <option value="">-- Semua Program Studi --</option>
-                  <option value="Informatika">Informatika</option>
-                  <option value="Matematika">Matematika</option>
-                  <option value="Teknik Mesin">Teknik Mesin</option>
-                  <option value="Teknik Elektro">Teknik Elektro</option>
+                  {PRODI_LIST.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -278,18 +314,19 @@ const Upload = () => {
               </label>
 
               {file && (
-                <button
+                <Button
                   onClick={handlePredict}
                   disabled={loading}
-                  className="w-full md:w-auto px-8 py-3.5 bg-accent text-white font-bold rounded-xl hover:bg-accent-dark transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-accent/20"
+                  size="lg"
+                  className="w-full md:w-auto"
                 >
                   {loading ? (
-                    <Loader2 className="animate-spin" />
+                    <Loader2 className="animate-spin" size={18} />
                   ) : (
                     <BarChart2 size={18} />
-                  )}{" "}
-                  Jalankan Proses Analisis Prediksi
-                </button>
+                  )}
+                  Jalankan Prediksi
+                </Button>
               )}
             </div>
 
@@ -307,7 +344,7 @@ const Upload = () => {
               <h3 className="text-md font-bold text-secondary mb-1">
                 Pratinjau Lembar Kerja Spreadsheet
               </h3>
-              <p className="text-xs text-gray-400 mb-4">
+              <p className="text-xs text-gray-500 mb-4">
                 Menampilkan 10 baris teratas dari total{" "}
                 <strong>{previewData.total_rows}</strong> rekaman mahasiswa yang
                 terdeteksi.
@@ -317,9 +354,9 @@ const Upload = () => {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-gray-50 border-b border-border text-gray-500 font-semibold uppercase tracking-wider">
-                      <th className="p-3 whitespace-nowrap">NIM</th>
-                      <th className="p-3 whitespace-nowrap">Nama Mahasiswa</th>
-                      <th className="p-3 whitespace-nowrap">IPK {semester ? `Semester ${semester}` : ''}</th>
+                      <th scope="col" className="p-3 whitespace-nowrap">NIM</th>
+                      <th scope="col" className="p-3 whitespace-nowrap">Nama Mahasiswa</th>
+                      <th scope="col" className="p-3 whitespace-nowrap">IPK {semester ? `Semester ${semester}` : ''}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border text-gray-600">
@@ -368,11 +405,11 @@ const Upload = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-surface rounded-2xl shadow-xl border border-border px-8 py-6 flex flex-col items-center w-full max-w-md">
             <h3 className="text-lg font-bold text-secondary mb-4">
-              Sedang Memproses Pola Prediksi...
+              Menjalankan prediksi, mohon tunggu...
             </h3>
             <div className="w-full bg-gray-200 rounded-full h-4 mb-2 overflow-hidden border border-gray-300">
               <div
-                className="bg-accent h-4 rounded-full transition-all duration-300"
+                className="bg-primary h-4 rounded-full transition-all duration-300"
                 style={{ width: `${predictProgress}%` }}
               ></div>
             </div>

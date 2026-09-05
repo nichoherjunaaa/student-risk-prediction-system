@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, User, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Button from '../components/Button';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -99,7 +100,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"
-                    placeholder="Masukkan email (contoh: admin@... atau dpa@...)" />
+                    placeholder="Masukkan alamat email Anda" />
                 </div>
               </div>
 
@@ -128,10 +129,9 @@ const Login = () => {
                 </label>
               </div>
 
-              <button type="submit" disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-semibold text-secondary bg-accent hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent transition-colors disabled:opacity-50">
+              <Button type="submit" size="lg" block disabled={loading}>
                 {loading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Masuk'}
-              </button>
+              </Button>
             </form>
             
             <div className="mt-8 pt-6 border-t border-border text-center">
