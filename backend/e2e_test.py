@@ -137,8 +137,9 @@ def run():
     def batch_ids_for(sem):
         conn = sqlite3.connect(_tmp_db)
         rows = conn.execute(
-            "SELECT id FROM batches WHERE prodi='Informatika' AND IFNULL(angkatan,'')='2023' AND IFNULL(semester,'')=?",
-            (str(sem),)).fetchall()
+            "SELECT id FROM batches WHERE prodi='Informatika' AND IFNULL(angkatan,'')='2023' AND IFNULL(semester,'')=?"
+            " AND deleted_at IS NULL AND user_id=?",
+            (str(sem), A._token_serializer.loads(dpa_tok)['uid'])).fetchall()
         conn.close()
         return [x[0] for x in rows]
 
@@ -150,6 +151,66 @@ def run():
     predict_ds(3)
     check('prediksi ulang semester 3 menimpa, bukan menggandakan',
           batch_ids_for(3) != s3 and len(batch_ids_for(3)) == 1)
+
+    print("\n=== 3b. Hasil prediksi terpisah per user + soft delete ===")
+    kaprodi_tok = login('kaprodi.test@sisip.test', 'Kaprodi#2026')
+    kaprodi_uid = A._token_serializer.loads(kaprodi_tok)['uid']
+    dpa_s3 = batch_ids_for(3)
+    r = client.post('/api/predict', headers=auth(kaprodi_tok), data={
+        'file': (io.BytesIO(ds_bytes), 'DATA.xlsx'),
+        'prodi': 'Informatika', 'angkatan': '2023', 'semester': '3',
+        'uploaded_by': 'Nama Palsu',
+    }, content_type='multipart/form-data')
+    check('prediksi kaprodi (kombinasi sama dgn DPA) -> 200', r.status_code == 200)
+    kap_batch = r.get_json()['batch_id']
+    check('prediksi user lain tidak menimpa batch DPA', set(dpa_s3) <= set(batch_ids_for(3)), (dpa_s3, batch_ids_for(3)))
+
+    conn = sqlite3.connect(_tmp_db)
+    owner, name = conn.execute('SELECT user_id, uploaded_by FROM batches WHERE id=?', (kap_batch,)).fetchone()
+    conn.close()
+    check('pemilik & uploaded_by diambil dari token, bukan form',
+          owner == kaprodi_uid and name == 'Kaprodi Tester', (owner, name))
+
+    dpa_hist = {b['id'] for b in client.get('/api/history', headers=auth(dpa_tok)).get_json()['batches']}
+    kap_hist = {b['id'] for b in client.get('/api/history', headers=auth(kaprodi_tok)).get_json()['batches']}
+    check('history DPA tidak memuat batch kaprodi', kap_batch not in dpa_hist and dpa_s3[0] in dpa_hist)
+    check('history kaprodi hanya batch miliknya', kap_hist == {kap_batch}, kap_hist)
+    check('DPA buka batch kaprodi -> 404',
+          client.get(f'/api/batch/{kap_batch}', headers=auth(dpa_tok)).status_code == 404)
+    check('kaprodi buka batch sendiri -> 200',
+          client.get(f'/api/batch/{kap_batch}', headers=auth(kaprodi_tok)).status_code == 200)
+    nim = client.get(f'/api/batch/{kap_batch}', headers=auth(kaprodi_tok)).get_json()['results'][0]['nim']
+    check('DPA buka mahasiswa via batch kaprodi -> 404',
+          client.get(f'/api/student/{nim}?batch={kap_batch}', headers=auth(dpa_tok)).status_code == 404)
+    r = client.get(f'/api/student/{nim}', headers=auth(dpa_tok))
+    check('student tanpa batch -> dari batch milik DPA sendiri',
+          r.status_code == 200 and r.get_json()['batch_id'] != kap_batch, r.status_code)
+
+    r = client.delete(f'/api/users/{kaprodi_uid}', headers=auth(admin_tok))
+    check('admin hapus kaprodi -> 200', r.status_code == 200, r.status_code)
+    conn = sqlite3.connect(_tmp_db)
+    urow = conn.execute('SELECT deleted_at FROM users WHERE id=?', (kaprodi_uid,)).fetchone()
+    brow = conn.execute('SELECT deleted_at FROM batches WHERE id=?', (kap_batch,)).fetchone()
+    npred = conn.execute('SELECT COUNT(*) FROM predictions WHERE batch_id=?', (kap_batch,)).fetchone()[0]
+    conn.close()
+    check('user di-soft-delete (baris masih ada)', urow is not None and urow[0] is not None, urow)
+    check('batch user ikut di-soft-delete, prediksi tetap tersimpan',
+          brow is not None and brow[0] is not None and npred > 0, (brow, npred))
+    check('token user terhapus langsung ditolak -> 401',
+          client.get('/api/history', headers=auth(kaprodi_tok)).status_code == 401)
+    check('user terhapus tidak bisa login', login('kaprodi.test@sisip.test', 'Kaprodi#2026') is None)
+    ulist = client.get('/api/users', headers=auth(admin_tok)).get_json()
+    check('user terhapus hilang dari daftar user', all(u['id'] != kaprodi_uid for u in ulist))
+    check('hapus user yang sudah terhapus -> 404',
+          client.delete(f'/api/users/{kaprodi_uid}', headers=auth(admin_tok)).status_code == 404)
+    r = client.post('/api/users', headers=auth(admin_tok),
+                    json={'email': 'kaprodi.test@sisip.test', 'password': 'Baru#2026', 'name': 'Kaprodi Baru', 'role': 'kaprodi'})
+    check('email user terhapus bisa dipakai akun baru -> 201', r.status_code == 201, r.get_json())
+    new_tok = login('kaprodi.test@sisip.test', 'Baru#2026')
+    check('akun baru tidak mewarisi batch akun lama',
+          new_tok and client.get('/api/history', headers=auth(new_tok)).get_json()['batches'] == [])
+    check('dpa masih melihat batch miliknya', dpa_s3[0] in
+          {b['id'] for b in client.get('/api/history', headers=auth(dpa_tok)).get_json()['batches']})
 
     print("\n=== 4. Diagnosa berkas tidak cocok ===")
     r = client.post('/api/predict', headers=auth(dpa_tok), data={

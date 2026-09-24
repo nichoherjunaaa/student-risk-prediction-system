@@ -1,4 +1,5 @@
 import axios from "axios";
+import { clearSession } from "./session";
 
 // Satu tempat untuk aturan autentikasi HTTP di sisi klien:
 //  - lampirkan Bearer token dari localStorage ke setiap permintaan /api
@@ -20,8 +21,7 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
+      clearSession();
       if (window.location.pathname !== "/login") {
         window.location.assign("/login");
       }

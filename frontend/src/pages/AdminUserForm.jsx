@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Save, ArrowLeft, AlertTriangle, Loader2 } from "lucide-react";
+import { Save, ArrowLeft, AlertTriangle, Loader2, Eye, EyeOff } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Button from "../components/Button";
@@ -11,6 +11,7 @@ const AdminUserForm = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -129,14 +130,27 @@ const AdminUserForm = () => {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Kata Sandi {id && <span className="text-gray-500 font-normal">(Biarkan kosong jika tidak ingin diubah)</span>}
                 </label>
-                <input
-                  type="password"
-                  required={!id}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition"
-                  placeholder={id ? "Ubah kata sandi" : "Buat kata sandi aman"}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    required={!id}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full pl-4 pr-11 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition"
+                    placeholder={id ? "Ubah kata sandi" : "Buat kata sandi aman"}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                    aria-pressed={showPassword}
+                    title={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-secondary focus:outline-none focus-visible:text-primary transition-colors cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
               
               <div className="pt-6 flex justify-end gap-3">

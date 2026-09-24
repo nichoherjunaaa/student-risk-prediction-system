@@ -10,6 +10,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { clearSession } from "../lib/session";
 
 // Label peran ditulis lengkap supaya akun Kaprodi/Dekan tidak lagi ditampilkan
 // sebagai "DPA" hanya karena bukan admin.
@@ -88,9 +89,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   const handleLogout = (e) => {
     e.preventDefault();
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    localStorage.removeItem("loginTime");
+    clearSession();
     navigate("/login");
   };
 

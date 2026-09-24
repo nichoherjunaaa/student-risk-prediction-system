@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { clearSession } from '../lib/session';
 import { LogOut, CheckCircle } from 'lucide-react';
 
 const SessionTimeout = () => {
@@ -62,8 +63,7 @@ const SessionTimeout = () => {
 
   const handleLogout = () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    clearSession();
     setIsIdle(false);
     navigate('/login');
   };

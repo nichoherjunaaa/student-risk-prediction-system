@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, User, Lock, AlertTriangle, Loader2 } from 'lucide-react';
+import { ShieldCheck, User, Lock, AlertTriangle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { clearSession } from '../lib/session';
 import Button from '../components/Button';
 
 const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -39,6 +41,8 @@ const Login = () => {
       });
 
       const user = response.data.user;
+      // Sisa sesi user lain (mis. tab ditutup tanpa logout) jangan terbawa.
+      clearSession();
       localStorage.setItem('user', JSON.stringify(user));
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
@@ -91,12 +95,12 @@ const Login = () => {
 
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
-                <label htmlFor="email" className="block text-sm font-semibold text-secondary mb-2">Email atau Nama Pengguna</label>
+                <label htmlFor="email" className="block text-sm font-semibold text-secondary mb-2">Email</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                     <User className="h-5 w-5" />
                   </div>
-                  <input type="text" id="email" name="email" required
+                  <input type="email" id="email" name="email" autoComplete="email" required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"
@@ -105,40 +109,31 @@ const Login = () => {
               </div>
 
               <div>
-                <div className="flex justify-between mb-2">
-                  <label htmlFor="password" className="block text-sm font-semibold text-secondary">Kata Sandi</label>
-                  <a href="#" className="text-sm font-medium text-primary hover:text-primary-dark transition-colors">Lupa kata sandi?</a>
-                </div>
+                <label htmlFor="password" className="block text-sm font-semibold text-secondary mb-2">Kata Sandi</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                     <Lock className="h-5 w-5" />
                   </div>
-                  <input type="password" id="password" name="password" required
+                  <input type={showPassword ? 'text' : 'password'} id="password" name="password" autoComplete="current-password" required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"
+                    className="block w-full pl-10 pr-11 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"
                     placeholder="Masukkan kata sandi Anda" />
+                  <button type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                    aria-pressed={showPassword}
+                    title={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-secondary focus:outline-none focus-visible:text-primary transition-colors cursor-pointer">
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex items-center">
-                <input id="remember-me" name="remember-me" type="checkbox"
-                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded cursor-pointer accent-primary" />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-600 cursor-pointer">
-                  Ingat saya selama 30 hari
-                </label>
               </div>
 
               <Button type="submit" size="lg" block disabled={loading}>
                 {loading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Masuk'}
               </Button>
             </form>
-            
-            <div className="mt-8 pt-6 border-t border-border text-center">
-              <p className="text-sm text-gray-500">
-                Butuh akses? <a href="#" className="font-medium text-primary hover:text-primary-dark transition-colors">Hubungi Administrator</a>
-              </p>
-            </div>
           </div>
         </div>
 

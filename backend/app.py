@@ -1,6 +1,5 @@
 import os
 
-# Determinisme TF harus diset SEBELUM tensorflow diimpor, kalau tidak diabaikan.
 os.environ.setdefault('TF_DETERMINISTIC_OPS', '1')
 os.environ.setdefault('TF_CUDNN_DETERMINISTIC', '1')
 os.environ.setdefault('PYTHONHASHSEED', '42')
@@ -43,34 +42,23 @@ tf.random.set_seed(42)
 
 app = Flask(__name__)
 
-# CORS: default terbuka untuk pengembangan lokal; batasi di produksi lewat
-# SISIP_CORS_ORIGINS=https://domain-anda (pisahkan dengan koma bila lebih dari satu).
 _cors_origins = os.environ.get('SISIP_CORS_ORIGINS', '*').strip()
 CORS(app, resources={r"/api/*": {
     "origins": '*' if _cors_origins == '*' else [o.strip() for o in _cors_origins.split(',') if o.strip()]
 }})
 
-# Persistent paths. In production these point at a mounted volume so that
-# the SQLite database and trained model files survive container redeploys.
 DATA_DIR = os.environ.get('SISIP_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
 DB_FILE = os.environ.get('SISIP_DB_FILE', os.path.join(DATA_DIR, 'sisip_database.db'))
 MODEL_DIR = os.environ.get('SISIP_MODEL_DIR', os.path.join(DATA_DIR, 'saved_models'))
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# Hasil preprocessing bersifat sementara: dibuat untuk diunduh admin lalu
-# diunggah kembali di menu Master Model.
 PREPROCESS_DIR = os.environ.get('SISIP_PREPROCESS_DIR', os.path.join(DATA_DIR, 'preprocessed'))
 PREPROCESS_TTL = int(os.environ.get('SISIP_PREPROCESS_TTL', str(24 * 3600)))
 os.makedirs(PREPROCESS_DIR, exist_ok=True)
 
-# Default seeded admin credentials (override in production via env).
 DEFAULT_ADMIN_EMAIL = os.environ.get('SISIP_ADMIN_EMAIL', 'admin@gmail.com')
 DEFAULT_ADMIN_PASSWORD = os.environ.get('SISIP_ADMIN_PASSWORD', 'admin123')
 
-# ---------------------------------------------------------------------------
-# Autentikasi: token bertanda-tangan (stateless) + hashing password.
-# Set SISIP_SECRET_KEY di produksi — tanpa itu token bisa dipalsukan.
-# ---------------------------------------------------------------------------
 SECRET_KEY = os.environ.get('SISIP_SECRET_KEY', 'dev-insecure-secret-change-me')
 TOKEN_MAX_AGE = int(os.environ.get('SISIP_TOKEN_MAX_AGE', str(12 * 3600)))
 _token_serializer = URLSafeTimedSerializer(SECRET_KEY, salt='sisip-auth')
@@ -107,9 +95,20 @@ def _current_user():
     if not token:
         return None
     try:
-        return _token_serializer.loads(token, max_age=TOKEN_MAX_AGE)
+        payload = _token_serializer.loads(token, max_age=TOKEN_MAX_AGE)
     except (BadSignature, SignatureExpired):
         return None
+    # Token stateless tetap sah sampai kedaluwarsa, jadi status akun dicek ulang
+    # ke database: akun yang sudah dihapus (soft delete) langsung kehilangan akses,
+    # dan perubahan role oleh admin berlaku tanpa menunggu login ulang.
+    conn = sqlite3.connect(DB_FILE)
+    row = conn.execute('SELECT name, role FROM users WHERE id = ? AND deleted_at IS NULL',
+                       (payload.get('uid'),)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    payload['name'], payload['role'] = row
+    return payload
 
 
 def require_auth(fn):
@@ -209,14 +208,22 @@ def init_db():
         )
     ''')
 
-    # Migrasi idempoten: tambahkan kolom yang muncul setelah database dibuat.
-    # CREATE TABLE IF NOT EXISTS tidak menambah kolom pada tabel yang sudah ada.
     _migrate_columns(c, {
-        'batches': [('uploaded_by', 'TEXT'), ('semester', 'TEXT')],
+        'batches': [('uploaded_by', 'TEXT'), ('semester', 'TEXT'),
+                    ('user_id', 'INTEGER'), ('deleted_at', 'TEXT')],
         'predictions': [('details', 'TEXT')],
+        'users': [('deleted_at', 'TEXT')],
     })
 
-    # Seed default admin + DPA only on a fresh database.
+    # Batch dari sebelum ada kolom user_id: pasangkan ke akun yang namanya cocok
+    # dengan uploaded_by, sisanya (mis. "Sistem") ke admin utama.
+    c.execute('''UPDATE batches SET user_id = (
+                     SELECT u.id FROM users u WHERE u.name = batches.uploaded_by ORDER BY u.id LIMIT 1)
+                 WHERE user_id IS NULL''')
+    c.execute('''UPDATE batches SET user_id = (
+                     SELECT id FROM users WHERE email = ? ORDER BY id LIMIT 1)
+                 WHERE user_id IS NULL''', (DEFAULT_ADMIN_EMAIL,))
+
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         c.executemany('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', [
@@ -224,8 +231,6 @@ def init_db():
             ('dpa@gmail.com', _hash_pw('dpa123'), 'Dosen Pembimbing', 'dpa'),
         ])
 
-    # Demo accounts for end-to-end testing (one per role). Idempotent: safe to
-    # run on every startup. Disable in real production with SISIP_SEED_DEMO_USERS=0.
     if os.environ.get('SISIP_SEED_DEMO_USERS', '1').lower() in ('1', 'true', 'yes'):
         demo_users = [
             ('admin.test@sisip.test',   _hash_pw('Admin#2026'),   'Admin Tester',   'admin'),
@@ -242,14 +247,12 @@ def init_db():
 
 init_db()
 
-# Global states (In a production system, model & scalers should also be saved to disk)
 global_model = None
 global_encoders = {}
 global_le_y = None
 global_scaler = None
 global_config = {}
 
-# Arsitektur memakai dua MaxPooling2D((2,2)), jadi tiap sisi grid harus >= 4.
 MIN_GRID_SIDE = 4
 
 
@@ -311,7 +314,7 @@ def login():
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        c.execute("SELECT id, email, name, role, password FROM users WHERE email = ?", (email,))
+        c.execute("SELECT id, email, name, role, password FROM users WHERE email = ? AND deleted_at IS NULL", (email,))
         user = c.fetchone()
         conn.close()
 
@@ -323,13 +326,21 @@ def login():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def _release_deleted_email(c, email):
+    """Kolom email UNIQUE, dan baris akun yang di-soft-delete tetap ada. Supaya
+    emailnya bisa dipakai akun baru, email pada baris lama diberi akhiran penanda
+    (email aslinya tetap terbaca di depan akhiran itu)."""
+    c.execute("UPDATE users SET email = email || '#deleted-' || id WHERE email = ? AND deleted_at IS NOT NULL",
+              (email,))
+
+
 @app.route('/api/users', methods=['GET'])
 @require_role('admin')
 def get_users():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute('SELECT id, email, name, role FROM users WHERE role != "admin" ORDER BY id DESC')
+    c.execute('SELECT id, email, name, role FROM users WHERE role != "admin" AND deleted_at IS NULL ORDER BY id DESC')
     users = [dict(row) for row in c.fetchall()]
     conn.close()
     return jsonify(users), 200
@@ -350,6 +361,7 @@ def create_user():
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
+        _release_deleted_email(c, email)
         c.execute('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', (email, hashed_pw, name, data.get('role', 'dpa')))
         conn.commit()
         conn.close()
@@ -365,7 +377,7 @@ def get_user(user_id):
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT id, email, name, role FROM users WHERE id = ? AND role != 'admin'", (user_id,))
+    c.execute("SELECT id, email, name, role FROM users WHERE id = ? AND role != 'admin' AND deleted_at IS NULL", (user_id,))
     user = c.fetchone()
     conn.close()
     if user:
@@ -384,11 +396,12 @@ def update_user(user_id):
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
+        _release_deleted_email(c, email)
         if password:
             hashed_pw = _hash_pw(password)
-            c.execute('UPDATE users SET email = ?, name = ?, password = ?, role = ? WHERE id = ? AND role != "admin"', (email, name, hashed_pw, role, user_id))
+            c.execute('UPDATE users SET email = ?, name = ?, password = ?, role = ? WHERE id = ? AND role != "admin" AND deleted_at IS NULL', (email, name, hashed_pw, role, user_id))
         else:
-            c.execute('UPDATE users SET email = ?, name = ?, role = ? WHERE id = ? AND role != "admin"', (email, name, role, user_id))
+            c.execute('UPDATE users SET email = ?, name = ?, role = ? WHERE id = ? AND role != "admin" AND deleted_at IS NULL', (email, name, role, user_id))
             
         conn.commit()
         conn.close()
@@ -404,7 +417,15 @@ def delete_user(user_id):
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute('DELETE FROM users WHERE id = ? AND role != "admin"', (user_id,))
+        # Soft delete: akun dan seluruh batch prediksinya hanya ditandai, tidak
+        # dihapus fisik, supaya masih bisa dipulihkan atau diaudit.
+        now = datetime.datetime.now().isoformat(timespec='seconds')
+        c.execute('UPDATE users SET deleted_at = ? WHERE id = ? AND role != "admin" AND deleted_at IS NULL',
+                  (now, user_id))
+        if c.rowcount == 0:
+            conn.close()
+            return jsonify({'error': 'User tidak ditemukan'}), 404
+        c.execute('UPDATE batches SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', (now, user_id))
         conn.commit()
         conn.close()
         return jsonify({'message': 'Berhasil menghapus DPA'}), 200
@@ -416,10 +437,6 @@ TEMPLATE_IDENTITY_COLS = [
     'IPK 1', 'IPK 2', 'IPK 3', 'Total SKS 3',
 ]
 
-# Kolom identitas dan kolom rekap (IPK/SKS) hanya dipakai untuk penyaringan dan
-# pelaporan, tidak pernah menjadi fitur model. Dituliskan sebagai aturan, bukan
-# daftar tetap, supaya berkas dengan batas semester berbeda (IPK 4, Total SKS 4,
-# dan seterusnya) tetap tertangani tanpa mengubah kode.
 TRAIN_ID_COLS = ('NIM', 'Nomor PMB', 'Nomor Pendaftaran', 'Nama', 'Prodi', 'Angkatan', 'Semester')
 _REPORTING_COL_RE = re.compile(r'^(IPK|IPS|Total SKS|SKS Lulus|SKS Tidak Lulus)\s*\d*$',
                                re.IGNORECASE)
@@ -429,9 +446,6 @@ def non_feature_columns(columns):
     return [c for c in columns
             if c in TRAIN_ID_COLS or _REPORTING_COL_RE.match(str(c).strip())]
 
-# Kolom biodata mahasiswa yang dienkode tapi bukan nilai mata kuliah (dipakai untuk
-# membedakan "isi dengan nama provinsi/sekolah" vs "isi dengan huruf mutu" saat
-# membuat contoh data template).
 TEMPLATE_BIODATA_COLS = [
     'Propinsi Asal Lahir', 'Kabupaten Asal Lahir', 'Propinsi Asal Sekolah',
     'Kabupaten Asal Sekolah', 'Nama Sekolah', 'Jurusan Sekolah', 'Profil Sekolah',
@@ -508,8 +522,6 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
     scales = getattr(scaler, 'scale_', None)
     feat_index = {c: i for i, c in enumerate(feature_cols)}
 
-    # Gradasi profil: separuh di bawah rata-rata (lebih kuat), separuh di atas
-    # (lebih lemah), supaya contoh tidak seragam pada satu kelas prediksi.
     profil_k = [-1.2, -0.8, -0.4, 0.0, 0.6, 1.0, 1.4, 1.8]
 
     rows = []
@@ -530,8 +542,6 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
             elif col == 'Semester':
                 row[col] = semester
             elif col.startswith('IPK') or col.startswith('Total SKS'):
-                # Diisi belakangan dari huruf mutu baris ini — lihat catatan di
-                # bawah loop. Tidak boleh diacak sendiri.
                 row[col] = None
             elif col in feat_index and means is not None and scales is not None:
                 i = feat_index[col]
@@ -555,16 +565,13 @@ def _build_sample_rows(cols, feature_cols, encoders, scaler, prodi_label, angkat
         rows.append(row)
     return rows
 
-
-# Bobot huruf mutu untuk menghitung IPK contoh. Nilai di luar daftar (mis. 'T')
-# dianggap tidak lulus dan berbobot 0.
 _GRADE_POINTS = {
     'A': 4.0, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7,
     'C+': 2.3, 'C': 2.0, 'C-': 1.7, 'D+': 1.3, 'D': 1.0, 'D-': 0.7,
     'E': 0.0, 'F': 0.0, 'T': 0.0,
 }
 _GRADE_FAIL = {'D+', 'D', 'D-', 'E', 'F', 'T'}
-_SKS_PER_MATKUL = 3  # asumsi yang sama dipakai /api/predict saat menyusun details
+_SKS_PER_MATKUL = 3 
 
 
 def _isi_rekap_akademik(row):
@@ -659,11 +666,6 @@ def download_predict_template():
     return _template_xlsx_response(
         df, 'TEST_SEM3',
         f'template_prediksi_{m["model_prodi_label"].lower().replace(" ", "_")}.xlsx')
-
-
-# ---------------------------------------------------------------------------
-# Preprocessing: gabungkan berkas PMB + akademik menjadi satu berkas data latih.
-# ---------------------------------------------------------------------------
 
 _JOB_ID_RE = re.compile(r'^[0-9a-f]{32}$')
 
@@ -1004,7 +1006,9 @@ def predict():
     prodi = request.form.get('prodi', 'Unknown')
     angkatan = request.form.get('angkatan', 'Unknown')
     semester = request.form.get('semester', 'Unknown')
-    uploaded_by = request.form.get('uploaded_by', 'Sistem')
+    # Pemilik batch diambil dari token, bukan dari form, supaya tidak bisa dipalsukan.
+    user_id = request.user['uid']
+    uploaded_by = request.user['name']
 
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
@@ -1239,21 +1243,20 @@ def predict():
         batch_name = f"#BATCH-{datetime.datetime.now().strftime('%y%m%d%H%M')}"
         total_records = len(results)
 
-        # Kunci dedup mencakup semester — tanpa ini prediksi semester berbeda pada
-        # prodi & angkatan yang sama saling menimpa dan hasil lama hilang permanen.
+        # Kunci dedup mencakup user & semester — tanpa user_id, prediksi user lain
+        # pada prodi/angkatan/semester yang sama ikut menimpa hasil milik user ini.
+        # Batch lama cukup di-soft-delete, tidak dihapus fisik.
         semester_key = '' if str(semester) in ('Unknown', 'None', '') else str(semester)
-        c.execute('SELECT id FROM batches WHERE prodi = ? AND IFNULL(angkatan, "") = ? AND IFNULL(semester, "") = ?',
-                  (prodi, '' if angkatan in (None, 'Unknown') else angkatan, semester_key))
-        existing = c.fetchone()
-        if existing:
-            old_batch_id = existing[0]
-            c.execute('DELETE FROM predictions WHERE batch_id = ?', (old_batch_id,))
-            c.execute('DELETE FROM batches WHERE id = ?', (old_batch_id,))
+        c.execute('''UPDATE batches SET deleted_at = ?
+                     WHERE user_id = ? AND prodi = ? AND IFNULL(angkatan, "") = ? AND IFNULL(semester, "") = ?
+                       AND deleted_at IS NULL''',
+                  (datetime.datetime.now().isoformat(timespec='seconds'), user_id, prodi,
+                   '' if angkatan in (None, 'Unknown') else angkatan, semester_key))
 
         c.execute('''
-            INSERT INTO batches (batch_name, date_uploaded, total_records, at_risk, safe, status, prodi, angkatan, uploaded_by, semester)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan, uploaded_by, semester_key))
+            INSERT INTO batches (batch_name, date_uploaded, total_records, at_risk, safe, status, prodi, angkatan, uploaded_by, semester, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (batch_name, date_now, total_records, at_risk_count, safe_count, 'Processed', prodi, angkatan, uploaded_by, semester_key, user_id))
         batch_id = c.lastrowid
 
         pred_data = [(batch_id, r['nim'], r['pmb'], r['prediction'], r['isRisk'], r['details']) for r in results]
@@ -1286,7 +1289,9 @@ def get_history():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute('SELECT * FROM batches ORDER BY id DESC')
+    # Setiap user hanya melihat batch prediksinya sendiri, termasuk admin.
+    c.execute('SELECT * FROM batches WHERE user_id = ? AND deleted_at IS NULL ORDER BY id DESC',
+              (request.user['uid'],))
     batches = [dict(row) for row in c.fetchall()]
     conn.close()
     return jsonify({'batches': batches})
@@ -1297,9 +1302,11 @@ def get_batch(batch_id):
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute('SELECT * FROM batches WHERE id = ?', (batch_id,))
+    c.execute('SELECT * FROM batches WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+              (batch_id, request.user['uid']))
     batch = c.fetchone()
     if not batch:
+        conn.close()
         return jsonify({'error': 'Batch not found'}), 404
         
     c.execute('SELECT * FROM predictions WHERE batch_id = ?', (batch_id,))
@@ -1397,18 +1404,18 @@ def get_student(nim):
             SELECT p.*, b.batch_name, b.date_uploaded 
             FROM predictions p 
             JOIN batches b ON p.batch_id = b.id 
-            WHERE p.nim = ? AND p.batch_id = ?
+            WHERE p.nim = ? AND p.batch_id = ? AND b.user_id = ? AND b.deleted_at IS NULL
             ORDER BY p.id DESC LIMIT 1
-        ''', (nim, batch_id))
+        ''', (nim, batch_id, request.user['uid']))
     else:
-        # Get the latest prediction for this nim across all batches
+        # Prediksi terbaru untuk NIM ini dari batch milik user sendiri
         c.execute('''
             SELECT p.*, b.batch_name, b.date_uploaded 
             FROM predictions p 
             JOIN batches b ON p.batch_id = b.id 
-            WHERE p.nim = ? 
+            WHERE p.nim = ? AND b.user_id = ? AND b.deleted_at IS NULL
             ORDER BY p.id DESC LIMIT 1
-        ''', (nim,))
+        ''', (nim, request.user['uid']))
         
     row = c.fetchone()
     conn.close()
