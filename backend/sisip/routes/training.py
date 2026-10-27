@@ -85,9 +85,20 @@ def train_model():
         sheet_to_read, max_semester = _pick_train_sheet(excel_file.sheet_names,
                                                         request.form.get('semester'))
         df = pd.read_excel(excel_file, sheet_name=sheet_to_read)
-        
+
+        # Berkas hasil Preprocessing Data selalu satu prodi dan memuat kolom
+        # Prodi, jadi prodi model diambil dari situ bila tidak dipilih di form.
+        if prodi in ('Unknown', ''):
+            daftar = sorted({str(p).strip() for p in df['Prodi'].dropna()}) if 'Prodi' in df.columns else []
+            if len(daftar) != 1:
+                alasan = (f"berkas berisi lebih dari satu program studi ({', '.join(daftar)})" if daftar
+                          else "berkas tidak memuat kolom Prodi")
+                return jsonify({'error': f"Program studi tidak bisa dideteksi: {alasan}. "
+                                         "Gunakan berkas data latih hasil menu Preprocessing Data."}), 400
+            prodi = daftar[0]
+
         # Filter by Prodi and Angkatan if columns exist
-        if 'Prodi' in df.columns and prodi != 'Unknown' and prodi != '':
+        if 'Prodi' in df.columns:
             df = df[df['Prodi'].astype(str).str.contains(str(prodi), case=False, na=False, regex=False)]
 
         if 'Angkatan' in df.columns and angkatan != '':
@@ -249,6 +260,7 @@ def train_model():
 
         return jsonify({
             'message': 'Model trained successfully',
+            'prodi': prodi,
             'metrics': {
                 'accuracy': accuracy_score,
                 'loss': loss_score,

@@ -343,9 +343,12 @@ def _source_files(form):
     chosen = {}
     for kategori in ('pmb', 'akademik'):
         file_id = form.get(f'file_{kategori}_id')
-        info = file_info(file_id) if file_id else latest_file(kategori)
+        info = file_info(file_id, kategori) if file_id else latest_file(kategori)
+        judul = 'PMB' if kategori == 'pmb' else 'akademik'
+        if not info and file_id:
+            raise PredictError(f"Berkas {judul} yang dipilih tidak ditemukan atau sudah dihapus. "
+                               "Pilih berkas lain.")
         if not info:
-            judul = 'PMB' if kategori == 'pmb' else 'akademik'
             raise PredictError(f"Belum ada berkas {judul} di Berkas Mahasiswa. "
                                "Minta BAPSI mengunggah berkas terbaru terlebih dahulu.")
         chosen[kategori] = info

@@ -20,17 +20,25 @@ import { PREDIKSI_ROLES, roleLabel } from "../lib/roles";
 // yang menyala saat pengguna berada di halaman anak (detail mahasiswa, detail
 // batch, form pengguna), supaya orientasi tidak hilang. `roles` membatasi
 // peran yang melihat grup itu; tanpa `roles`, grup tampil untuk semua peran.
+// Saklar menu Format Data. Disembunyikan sementara: halamannya masih bisa
+// dibuka lewat /admin/format-data. Ubah ke true untuk menampilkannya kembali.
+const SHOW_FORMAT_DATA = false;
+
 const MENU_GROUPS = [
   {
     label: "Data & Model",
     roles: ["admin"],
     items: [
-      {
-        to: "/admin/format-data",
-        label: "Format Data",
-        icon: TableProperties,
-        match: (p) => p === "/admin/format-data",
-      },
+      ...(SHOW_FORMAT_DATA
+        ? [
+            {
+              to: "/admin/format-data",
+              label: "Format Data",
+              icon: TableProperties,
+              match: (p) => p === "/admin/format-data",
+            },
+          ]
+        : []),
       {
         to: "/admin/preprocessing",
         label: "Preprocessing Data",

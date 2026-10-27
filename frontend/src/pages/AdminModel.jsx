@@ -13,7 +13,6 @@ import { Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Button from "../components/Button";
-import { useProdiList } from "../lib/prodi";
 import axios from "axios";
 
 // Saklar tampilan hyperparameter (Max Epochs, Batch Size, Learning Rate,
@@ -66,9 +65,6 @@ const AdminModel = () => {
   const [isTraining, setIsTraining] = useState(false);
   const [trainProgress, setTrainProgress] = useState(0);
 
-  // State Saringan Utama Pilihan Prodi Admin
-  const [prodi, setProdi] = useState("");
-  const prodiList = useProdiList();
   const [angkatan, setAngkatan] = useState("");
 
   // State Hyperparameter Eksperimen Model
@@ -106,12 +102,6 @@ const AdminModel = () => {
   };
 
   const handleTrain = async () => {
-    if (!prodi) {
-      setError(
-        "Silakan tentukan Target Program Studi terlebih dahulu sebelum melatih model.",
-      );
-      return;
-    }
     if (!file) {
       setError(
         "Silakan tentukan berkas Excel data latih historis terlebih dahulu.",
@@ -131,7 +121,6 @@ const AdminModel = () => {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("prodi", prodi);
     formData.append("angkatan", angkatan);
     formData.append("epochs", epochs);
     formData.append("batch_size", batchSize);
@@ -150,7 +139,7 @@ const AdminModel = () => {
       setTimeout(() => {
         setIsTraining(false);
         setTrainProgress(0);
-        setModelMetrics(response.data.metrics);
+        setModelMetrics({ ...response.data.metrics, prodi: response.data.prodi });
         setShowSuccessModal(true);
         setFile(null);
         fetchModelHistory();
@@ -204,36 +193,18 @@ const AdminModel = () => {
               <Cpu className="text-primary" /> Latih Model Baru
             </h2>
             <p className="text-sm text-gray-500 mb-6">
-              Tentukan Program Studi sasaran, lalu unggah berkas data latih hasil
-              dari menu{" "}
+              Unggah berkas data latih hasil dari menu{" "}
               <Link
                 to="/admin/preprocessing"
                 className="font-semibold text-primary hover:underline"
               >
                 Preprocessing Data
               </Link>{" "}
-              untuk melatih kecerdasan buatan.
+              untuk melatih kecerdasan buatan. Program studi model dideteksi
+              otomatis dari kolom Prodi di berkas tersebut.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Target Program Studi
-                </label>
-                <select
-                  value={prodi}
-                  onChange={(e) => setProdi(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-                >
-                  <option value="">-- Semua Prodi --</option>
-                  {prodiList.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Tahun Angkatan Latih
@@ -485,8 +456,17 @@ const AdminModel = () => {
                 Model Berhasil Dilatih
               </h3>
               <p className="text-gray-600 mb-4 text-sm">
-                Model sudah tersimpan di registri. Aktifkan lewat tabel di bawah
-                agar dipakai untuk prediksi.
+                Model{" "}
+                {modelMetrics?.prodi && (
+                  <>
+                    prodi{" "}
+                    <span className="font-semibold text-secondary">
+                      {modelMetrics.prodi}
+                    </span>{" "}
+                  </>
+                )}
+                sudah tersimpan di registri. Aktifkan lewat tabel di bawah agar
+                dipakai untuk prediksi.
               </p>
               {modelMetrics && (
                 <div className="bg-background p-3 rounded-xl border border-border w-full mb-6 grid grid-cols-2 text-left gap-2">
