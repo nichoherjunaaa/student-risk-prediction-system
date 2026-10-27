@@ -13,7 +13,7 @@ import { Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Button from "../components/Button";
-import { PRODI_LIST } from "../lib/prodi";
+import { useProdiList } from "../lib/prodi";
 import axios from "axios";
 
 // Saklar tampilan hyperparameter (Max Epochs, Batch Size, Learning Rate,
@@ -23,6 +23,37 @@ import axios from "axios";
 // Lihat docs/AUDIT-PIPELINE-PREDIKSI.md — requirement "parameter yang dipilih apa".
 // Ubah ke true untuk menampilkannya kembali.
 const SHOW_HYPERPARAMS = false;
+
+// Recall kelas SISIP = mahasiswa sisip yang tertangkap / seluruh mahasiswa sisip
+// di data validasi. Akurasi saja menipu karena sebagian besar mahasiswa tidak
+// sisip. Jumlahnya ikut ditampilkan karena data validasi kecil.
+const RecallSisip = ({ metrics }) => {
+  if (metrics.recall_sisip == null) {
+    return (
+      <span
+        className="text-gray-400"
+        title={
+          metrics.val_sisip_total === 0
+            ? "Tidak ada mahasiswa SISIP di data validasi"
+            : "Model lama: recall belum dicatat. Latih ulang untuk melihatnya."
+        }
+      >
+        —
+      </span>
+    );
+  }
+  const pct = metrics.recall_sisip * 100;
+  const color =
+    pct < 50 ? "text-red-600" : pct < 75 ? "text-amber-600" : "text-green-600";
+  return (
+    <span className={`font-semibold ${color}`}>
+      {pct.toFixed(1)}%{" "}
+      <span className="font-normal text-gray-500">
+        ({metrics.val_sisip_caught}/{metrics.val_sisip_total})
+      </span>
+    </span>
+  );
+};
 
 const AdminModel = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -37,10 +68,11 @@ const AdminModel = () => {
 
   // State Saringan Utama Pilihan Prodi Admin
   const [prodi, setProdi] = useState("");
+  const prodiList = useProdiList();
   const [angkatan, setAngkatan] = useState("");
 
   // State Hyperparameter Eksperimen Model
-  const [epochs, setEpochs] = useState(10);
+  const [epochs, setEpochs] = useState(100);
   const [batchSize, setBatchSize] = useState(32);
   const [learningRate, setLearningRate] = useState(0.001);
   const [dropoutRate, setDropoutRate] = useState(0.3);
@@ -194,7 +226,7 @@ const AdminModel = () => {
                   className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
                 >
                   <option value="">-- Semua Prodi --</option>
-                  {PRODI_LIST.map((p) => (
+                  {prodiList.map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>
@@ -351,6 +383,7 @@ const AdminModel = () => {
                     <th scope="col" className="p-3">Program Studi</th>
                     <th scope="col" className="p-3">Waktu Dilatih</th>
                     <th scope="col" className="p-3">Akurasi</th>
+                    <th scope="col" className="p-3">Recall SISIP</th>
                     <th scope="col" className="p-3">Loss</th>
                     <th scope="col" className="p-3 text-center">Status</th>
                   </tr>
@@ -358,13 +391,13 @@ const AdminModel = () => {
                 <tbody className="text-sm divide-y divide-border">
                   {historyLoading ? (
                     <tr>
-                      <td colSpan="6" className="p-4 text-center text-gray-500">
+                      <td colSpan="7" className="p-4 text-center text-gray-500">
                         Memuat registri model...
                       </td>
                     </tr>
                   ) : modelHistory.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="p-4 text-center text-gray-500">
+                      <td colSpan="7" className="p-4 text-center text-gray-500">
                         Belum ada model yang tersimpan. Latih model pertama Anda di
                         panel atas.
                       </td>
@@ -387,6 +420,9 @@ const AdminModel = () => {
                         </td>
                         <td className="p-3 text-green-600 font-semibold">
                           {(model.accuracy * 100).toFixed(1)}%
+                        </td>
+                        <td className="p-3 text-xs">
+                          <RecallSisip metrics={model} />
                         </td>
                         <td className="p-3 text-red-500 font-semibold">
                           {model.loss.toFixed(3)}
@@ -469,6 +505,20 @@ const AdminModel = () => {
                     <p className="text-md font-bold text-red-500">
                       {modelMetrics.loss.toFixed(4)}
                     </p>
+                  </div>
+                  <div className="col-span-2 border-t border-border pt-2">
+                    <span className="text-xs text-gray-500">
+                      Recall SISIP (mahasiswa sisip yang tertangkap di data validasi):
+                    </span>
+                    <div className="text-md">
+                      <RecallSisip metrics={modelMetrics} />
+                    </div>
+                    {modelMetrics.n_train_samples != null && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Dilatih dari {modelMetrics.n_train_samples} mahasiswa
+                        berlabel.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

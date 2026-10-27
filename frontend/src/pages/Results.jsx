@@ -3,7 +3,7 @@ import { Users, AlertTriangle, TrendingUp, Download, UploadCloud } from 'lucide-
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import Button, { ButtonLink } from '../components/Button';
-import { PRODI_LIST } from '../lib/prodi';
+import { useProdiScope } from '../lib/prodi';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Chart from 'chart.js/auto';
 import axios from 'axios';
@@ -22,13 +22,19 @@ const Results = () => {
     return saved ? JSON.parse(saved) : { total: 0, atRisk: 0, safe: 0, results: [], batch_id: null };
   });
   const navigate = useNavigate();
+  const { list: prodiList, locked: lockedProdi } = useProdiScope();
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
   // Jatuh ke prodi pertama, bukan 'Unknown': judul grafik "prodi Unknown" dan
   // deretan tombol prodi yang tidak satu pun aktif hanya membingungkan.
   const prodiToFilter =
-    location.state?.prodi || data.prodi || localStorage.getItem('lastProdi') || PRODI_LIST[0];
+    location.state?.prodi || data.prodi || localStorage.getItem('lastProdi') || prodiList[0];
   const [selectedProdi, setSelectedProdi] = useState(prodiToFilter);
+
+  // Akun yang terikat prodi hanya punya satu pilihan: prodinya sendiri.
+  useEffect(() => {
+    if (lockedProdi) setSelectedProdi(lockedProdi);
+  }, [lockedProdi]);
 
   useEffect(() => {
     localStorage.setItem('lastProdi', selectedProdi);
@@ -213,6 +219,25 @@ const Results = () => {
             </div>
           )}
 
+          {hasPrediction && data.sumber && (
+            <div className="mb-6 max-w-[96rem] mx-auto text-sm bg-surface border border-border rounded-2xl p-4 space-y-1.5">
+              <p className="text-gray-600">
+                Diprediksi dari <span className="font-semibold text-secondary">{data.sumber.berkas.pmb.name}</span> dan{' '}
+                <span className="font-semibold text-secondary">{data.sumber.berkas.akademik.name}</span> dengan model{' '}
+                <span className="font-mono text-xs">{data.sumber.model.version}</span> (data sampai semester{' '}
+                {data.sumber.model.max_semester}).
+              </p>
+              {data.sumber.belum_lengkap.length > 0 && (
+                <p className="text-amber-700 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  {data.sumber.belum_lengkap.length} mahasiswa datanya belum sampai semester{' '}
+                  {data.sumber.model.max_semester}, sehingga nilai semester yang belum ada dianggap belum diambil.
+                  Baca hasilnya dengan hati-hati.
+                </p>
+              )}
+            </div>
+          )}
+
           {hasPrediction && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 max-w-[96rem] mx-auto">
             <div className="bg-surface rounded-2xl p-6 border border-border shadow-sm flex items-center">
@@ -269,7 +294,7 @@ const Results = () => {
               </div>
               {/* Prodi Filter Buttons */}
               <div className="flex flex-wrap gap-2 mt-3 sm:mt-0">
-                {PRODI_LIST.map(p => (
+                {prodiList.map(p => (
                   <button
                     key={p}
                     onClick={() => setSelectedProdi(p)}

@@ -17,6 +17,9 @@
 # Hasil preprocessing sementara (dibuat ulang tiap kali diproses)
 backend/preprocessed/
 
+# Berkas Mahasiswa yang diunggah BAPSI (data asli, jangan masuk git)
+backend/files/
+
 # Model checkpoints & binary artifact exports
 *.h5
 *.keras
@@ -78,3 +81,11 @@ Thumbs.db
 *.swp
 *.swo
 ui/
+
+# Playwright
+frontend/e2e/test-results/
+frontend/e2e/report/
+
+# Catatan pribadi & hasil screenshot uji E2E (tidak untuk repo)
+notes-28-juli-2026
+e2e-screenshots/

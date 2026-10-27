@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Upload as UploadIcon,
   Wand2,
@@ -7,11 +7,12 @@ import {
   Loader2,
   Table2,
   FileSpreadsheet,
+  FolderOpen,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Button from "../components/Button";
-import { PRODI_LIST } from "../lib/prodi";
+import { useProdiList } from "../lib/prodi";
 import axios from "axios";
 
 const SEMESTER_OPTIONS = [1, 2, 3, 4];
@@ -35,11 +36,36 @@ const SUMBER = [
 const AdminPreprocessing = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [files, setFiles] = useState({ pmb: null, akademik: null });
+  // Tiap berkas bisa diambil dari Berkas Mahasiswa (diunggah BAPSI) atau
+  // diunggah langsung dari komputer. Berkas tersimpan terbaru dipilih otomatis.
+  const [mode, setMode] = useState({ pmb: "tersimpan", akademik: "tersimpan" });
+  const [tersimpan, setTersimpan] = useState({ pmb: null, akademik: null });
+  const [pilihan, setPilihan] = useState({ pmb: "", akademik: "" });
   const [prodi, setProdi] = useState("");
+  const prodiList = useProdiList();
   const [semester, setSemester] = useState(3);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasil, setHasil] = useState(null);
+
+  useEffect(() => {
+    SUMBER.forEach(({ key }) => {
+      axios
+        .get("/api/files", { params: { kategori: key } })
+        .then((r) => {
+          const list = r.data.files;
+          setTersimpan((prev) => ({ ...prev, [key]: list }));
+          setPilihan((prev) => ({ ...prev, [key]: list[0] ? String(list[0].id) : "" }));
+          if (!list.length) setMode((prev) => ({ ...prev, [key]: "lokal" }));
+        })
+        .catch(() => {
+          setTersimpan((prev) => ({ ...prev, [key]: [] }));
+          setMode((prev) => ({ ...prev, [key]: "lokal" }));
+        });
+    });
+  }, []);
+
+  const siap = (key) => (mode[key] === "tersimpan" ? Boolean(pilihan[key]) : Boolean(files[key]));
 
   const pilihBerkas = (key) => (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -49,7 +75,7 @@ const AdminPreprocessing = () => {
   };
 
   const handleProses = async () => {
-    if (!files.pmb || !files.akademik) {
+    if (!siap("pmb") || !siap("akademik")) {
       setError("Berkas PMB dan berkas akademik harus dipilih keduanya.");
       return;
     }
@@ -58,8 +84,10 @@ const AdminPreprocessing = () => {
     setHasil(null);
 
     const formData = new FormData();
-    formData.append("file_pmb", files.pmb);
-    formData.append("file_akademik", files.akademik);
+    SUMBER.forEach(({ key }) => {
+      if (mode[key] === "tersimpan") formData.append(`file_${key}_id`, pilihan[key]);
+      else formData.append(`file_${key}`, files[key]);
+    });
     formData.append("prodi", prodi);
     formData.append("semester", semester);
 
@@ -115,7 +143,7 @@ const AdminPreprocessing = () => {
         <Header
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           title="Preprocessing Data"
-          subtitle="Gabungkan berkas PMB dan akademik menjadi satu berkas data latih."
+          subtitle="Gabungkan berkas PMB dan akademik (Excel atau CSV) menjadi satu berkas data latih."
         />
 
         <main className="p-6 space-y-6 max-w-[96rem] w-full mx-auto">
@@ -125,39 +153,90 @@ const AdminPreprocessing = () => {
               Data Latih
             </h2>
             <p className="text-sm text-gray-500 mb-6">
-              Unggah berkas PMB dan berkas akademik untuk satu program studi.
-              Sistem akan menggabungkannya menjadi satu tabel (satu baris per
-              mahasiswa) berisi kolom fitur dan kolom Label, siap diunggah di
-              menu Master Model untuk melatih model.
+              Unggah berkas PMB dan berkas akademik (Excel .xlsx atau CSV) untuk
+              satu program studi. Sistem akan menggabungkannya menjadi satu tabel
+              (satu baris per mahasiswa) berisi kolom fitur dan kolom Label, siap
+              diunggah di menu Master Model untuk melatih model.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              {SUMBER.map((sumber) => (
-                <label
-                  key={sumber.key}
-                  className="flex flex-col px-5 py-5 bg-background rounded-xl border-2 border-dashed border-gray-300 cursor-pointer hover:border-primary transition"
-                >
-                  <span className="flex items-center gap-2 text-sm font-bold text-secondary mb-1">
-                    <FileSpreadsheet size={16} className="text-primary" />
-                    {sumber.judul}
-                  </span>
-                  <span className="text-xs text-gray-500 mb-3">
-                    {sumber.isi}
-                  </span>
-                  <span className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                    <UploadIcon size={16} className="text-gray-400 shrink-0" />
-                    <span className="truncate">
-                      {files[sumber.key]?.name || "Pilih berkas Excel (.xlsx)"}
+              {SUMBER.map((sumber) => {
+                const daftar = tersimpan[sumber.key];
+                const aktif = mode[sumber.key];
+                return (
+                  <div
+                    key={sumber.key}
+                    className="flex flex-col px-5 py-5 bg-background rounded-xl border-2 border-dashed border-gray-300"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-bold text-secondary mb-1">
+                      <FileSpreadsheet size={16} className="text-primary" />
+                      {sumber.judul}
                     </span>
-                  </span>
-                  <input
-                    type="file"
-                    accept=".xlsx"
-                    onChange={pilihBerkas(sumber.key)}
-                    className="hidden"
-                  />
-                </label>
-              ))}
+                    <span className="text-xs text-gray-500 mb-3">
+                      {sumber.isi}
+                    </span>
+
+                    <div className="flex gap-1 mb-3 text-xs font-semibold" role="group" aria-label={`Sumber ${sumber.judul}`}>
+                      {[
+                        ["tersimpan", "Dari Berkas Mahasiswa"],
+                        ["lokal", "Unggah dari Komputer"],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={aktif === value}
+                          onClick={() => setMode((prev) => ({ ...prev, [sumber.key]: value }))}
+                          className={`px-3 py-1.5 rounded-lg border transition ${aktif === value ? "border-primary bg-primary/5 text-primary" : "border-border text-gray-500 hover:bg-surface"}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {aktif === "tersimpan" ? (
+                      daftar === null ? (
+                        <span className="text-sm text-gray-400 flex items-center gap-2">
+                          <Loader2 size={14} className="animate-spin" /> Memuat berkas tersimpan...
+                        </span>
+                      ) : daftar.length === 0 ? (
+                        <span className="text-sm text-gray-500 flex items-center gap-2">
+                          <FolderOpen size={16} className="text-gray-400 shrink-0" />
+                          Belum ada {sumber.judul} yang diunggah BAPSI.
+                        </span>
+                      ) : (
+                        <select
+                          value={pilihan[sumber.key]}
+                          onChange={(e) => setPilihan((prev) => ({ ...prev, [sumber.key]: e.target.value }))}
+                          aria-label={`Pilih ${sumber.judul}`}
+                          className="w-full px-3 py-2.5 bg-surface border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
+                        >
+                          {daftar.map((f, i) => (
+                            <option key={f.id} value={f.id}>
+                              {f.name}
+                              {f.path ? ` (${f.path})` : ""} -{" "}
+                              {new Date(f.uploaded_at).toLocaleDateString("id-ID")}
+                              {i === 0 ? " - terbaru" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      )
+                    ) : (
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-600 cursor-pointer hover:text-primary">
+                        <UploadIcon size={16} className="text-gray-400 shrink-0" />
+                        <span className="truncate">
+                          {files[sumber.key]?.name || "Pilih berkas Excel (.xlsx) atau CSV"}
+                        </span>
+                        <input
+                          type="file"
+                          accept=".xlsx,.csv"
+                          onChange={pilihBerkas(sumber.key)}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -171,7 +250,7 @@ const AdminPreprocessing = () => {
                   className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
                 >
                   <option value="">-- Deteksi dari berkas --</option>
-                  {PRODI_LIST.map((p) => (
+                  {prodiList.map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>

@@ -4,7 +4,7 @@ import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { roleLabel } from "../lib/roles";
+import { roleLabel, PRODI_REQUIRED_ROLES } from "../lib/roles";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
@@ -15,6 +15,14 @@ const AdminUsers = () => {
   const [error, setError] = useState("");
   const [userToDelete, setUserToDelete] = useState(null);
   const navigate = useNavigate();
+  // Akun yang sedang dipakai tidak ditawari tombol hapus (backend juga menolak).
+  const currentUserId = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user"))?.id;
+    } catch {
+      return null;
+    }
+  })();
 
   useEffect(() => {
     fetchUsers();
@@ -67,7 +75,7 @@ const AdminUsers = () => {
               <div>
                 <h2 className="text-xl font-bold">Daftar Pengguna</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Akun DPA, Kaprodi, dan Dekan yang dapat masuk ke sistem.
+                  Seluruh akun yang dapat masuk ke sistem menggunakan NIP.
                 </p>
               </div>
               <Button onClick={() => handleOpenForm()}>
@@ -86,21 +94,22 @@ const AdminUsers = () => {
                 <thead>
                   <tr className="border-b border-border bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
                     <th scope="col" className="p-3">Nama Pengguna</th>
-                    <th scope="col" className="p-3">Email</th>
+                    <th scope="col" className="p-3">NIP</th>
                     <th scope="col" className="p-3">Peran</th>
+                    <th scope="col" className="p-3">Program Studi</th>
                     <th scope="col" className="p-3 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm divide-y divide-border">
                   {loading ? (
                     <tr>
-                      <td colSpan="4" className="p-4 text-center text-gray-500">
+                      <td colSpan="5" className="p-4 text-center text-gray-500">
                         Memuat daftar pengguna...
                       </td>
                     </tr>
                   ) : users.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="p-4 text-center text-gray-500">
+                      <td colSpan="5" className="p-4 text-center text-gray-500">
                         Belum ada akun pengguna yang terdaftar.
                       </td>
                     </tr>
@@ -108,11 +117,21 @@ const AdminUsers = () => {
                     users.map((user) => (
                       <tr key={user.id} className="hover:bg-gray-50 transition">
                         <td className="p-3 font-medium text-gray-900">{user.name}</td>
-                        <td className="p-3 text-gray-600">{user.email}</td>
+                        <td className="p-3 text-gray-600 font-mono">
+                          {user.nip || <span className="font-sans text-amber-600">Belum diisi</span>}
+                        </td>
                         <td className="p-3 text-gray-600">
                           <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-semibold uppercase">
                             {roleLabel(user.role)}
                           </span>
+                        </td>
+                        <td className="p-3 text-gray-600">
+                          {user.prodi ||
+                            (PRODI_REQUIRED_ROLES.includes(user.role) ? (
+                              <span className="text-amber-600">Belum diatur</span>
+                            ) : (
+                              <span className="text-gray-400">Semua prodi</span>
+                            ))}
                         </td>
                         <td className="p-3 text-center space-x-2">
                           <button
@@ -123,6 +142,7 @@ const AdminUsers = () => {
                           >
                             <Edit size={16} />
                           </button>
+                          {user.id !== currentUserId && (
                           <button
                             onClick={() => setUserToDelete(user)}
                             className="p-2 text-red-500 bg-red-50 hover:bg-red-500 hover:text-white rounded-lg transition"
@@ -131,6 +151,7 @@ const AdminUsers = () => {
                           >
                             <Trash2 size={16} />
                           </button>
+                          )}
                         </td>
                       </tr>
                     ))

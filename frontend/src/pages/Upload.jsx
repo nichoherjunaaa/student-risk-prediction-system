@@ -12,7 +12,8 @@ import {
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Button from "../components/Button";
-import { PRODI_LIST } from "../lib/prodi";
+import AutoPredictCard from "../components/AutoPredictCard";
+import { useProdiScope } from "../lib/prodi";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
@@ -27,9 +28,56 @@ const Upload = () => {
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictProgress, setPredictProgress] = useState(0);
   const [prodi, setProdi] = useState("");
+  const { list: prodiList, locked: lockedProdi } = useProdiScope();
+
+  // Dosen yang terikat prodi tidak memilih prodi; nilainya diisi otomatis.
+  useEffect(() => {
+    if (lockedProdi) setProdi(lockedProdi);
+  }, [lockedProdi]);
   const [angkatan, setAngkatan] = useState("");
   const [semester, setSemester] = useState("");
+  // "otomatis": dari Berkas Mahasiswa (tanpa template); "template": unggah berkas sendiri.
+  const [mode, setMode] = useState("otomatis");
   const navigate = useNavigate();
+
+  // Progress bar + navigasi ke halaman hasil, dipakai kedua mode prediksi.
+  const runWithProgress = async (request, onError) => {
+    setLoading(true);
+    setIsPredicting(true);
+    setPredictProgress(5);
+    // Animasi progress bar palsu agar UI terasa interaktif saat backend menghitung matriks CNN
+    const progressInterval = setInterval(() => {
+      setPredictProgress((prev) => {
+        if (prev >= 90) return prev;
+        return prev + Math.floor(Math.random() * 8) + 4;
+      });
+    }, 400);
+    try {
+      const response = await request();
+      clearInterval(progressInterval);
+      setPredictProgress(100);
+      setTimeout(() => {
+        setIsPredicting(false);
+        setPredictProgress(0);
+        navigate("/results", {
+          state: { predictionData: response.data, prodi: response.data.prodi || prodi },
+        });
+      }, 500);
+    } catch (err) {
+      clearInterval(progressInterval);
+      setPredictProgress(100);
+      setTimeout(() => {
+        setIsPredicting(false);
+        setPredictProgress(0);
+        const detail = err.response?.data;
+        onError(
+          (typeof detail === "object" ? detail?.error : null) ||
+            "Gagal mengeksekusi prediksi pada berkas data baru Anda.",
+        );
+      }, 500);
+    }
+    setLoading(false);
+  };
 
   // Memanggil pratinjau data excel (10 baris pertama) ke backend
   const fetchPreview = async (selectedFile, currentProdi, currentAngkatan) => {
@@ -123,55 +171,12 @@ const Upload = () => {
       setError("Silakan pilih Program Studi terlebih dahulu sebelum menjalankan prediksi.");
       return;
     }
-    setLoading(true);
-    setIsPredicting(true);
-    setPredictProgress(5);
-
-    // Animasi progress bar palsu agar UI terasa interaktif saat backend menghitung matriks CNN
-    const progressInterval = setInterval(() => {
-      setPredictProgress((prev) => {
-        if (prev >= 90) return prev;
-        return prev + Math.floor(Math.random() * 8) + 4;
-      });
-    }, 400);
-
     const formData = new FormData();
     formData.append("file", file);
     formData.append("prodi", prodi);
     formData.append("angkatan", angkatan);
     formData.append("semester", semester);
-
-
-    try {
-      const response = await axios.post(
-        "/api/predict",
-        formData,
-      );
-      clearInterval(progressInterval);
-      setPredictProgress(100);
-
-      setTimeout(() => {
-        setIsPredicting(false);
-        setPredictProgress(0);
-        // Mengalihkan halaman ke grafik hasil analisis bawaan proyek
-        navigate("/results", {
-          state: { predictionData: response.data, prodi },
-        });
-      }, 500);
-    } catch (err) {
-      clearInterval(progressInterval);
-      setPredictProgress(100);
-      setTimeout(() => {
-        setIsPredicting(false);
-        setPredictProgress(0);
-        const detail = err.response?.data;
-        setError(
-          (typeof detail === "object" ? detail?.error : null) ||
-            "Gagal mengeksekusi prediksi pada berkas data baru Anda.",
-        );
-      }, 500);
-    }
-    setLoading(false);
+    await runWithProgress(() => axios.post("/api/predict", formData), setError);
   };
 
   return (
@@ -189,6 +194,33 @@ const Upload = () => {
         />
 
         <main className="p-6 space-y-6 max-w-[96rem] w-full mx-auto">
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Cara prediksi">
+            {[
+              ["otomatis", "Dari Berkas Mahasiswa (tanpa template)"],
+              ["template", "Unggah Berkas Template"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                role="tab"
+                aria-selected={mode === value}
+                onClick={() => setMode(value)}
+                className={`px-4 py-2.5 rounded-xl border text-sm font-semibold transition ${mode === value ? "border-primary bg-primary text-white shadow-sm" : "border-border bg-surface text-gray-600 hover:border-primary hover:text-primary"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {mode === "otomatis" ? (
+            <AutoPredictCard
+              prodi={prodi}
+              setProdi={setProdi}
+              prodiList={prodiList}
+              lockedProdi={lockedProdi}
+              runWithProgress={runWithProgress}
+            />
+          ) : (
+          <>
           <div className="bg-surface p-6 rounded-2xl shadow-sm border border-border">
             <h2 className="text-xl font-bold flex items-center gap-2 mb-2">
               <UploadCloud className="text-primary" /> Unggah Berkas Rekap Nilai
@@ -219,7 +251,7 @@ const Upload = () => {
                     <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 border-b border-border">
                       Pilih Program Studi
                     </p>
-                    {PRODI_LIST.map((p) => (
+                    {prodiList.map((p) => (
                       <button
                         key={p}
                         role="menuitem"
@@ -241,18 +273,27 @@ const Upload = () => {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Program Studi
                 </label>
-                <select
-                  value={prodi}
-                  onChange={(e) => setProdi(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                >
-                  <option value="">-- Semua Program Studi --</option>
-                  {PRODI_LIST.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
+                {lockedProdi ? (
+                  <div className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-secondary font-medium">
+                    {lockedProdi}
+                    <span className="block text-xs text-gray-400 font-normal mt-0.5">
+                      Sesuai program studi akun Anda
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    value={prodi}
+                    onChange={(e) => setProdi(e.target.value)}
+                    className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
+                  >
+                    <option value="">-- Semua Program Studi --</option>
+                    {prodiList.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
@@ -390,6 +431,8 @@ const Upload = () => {
                 </table>
               </div>
             </div>
+          )}
+          </>
           )}
         </main>
       </div>

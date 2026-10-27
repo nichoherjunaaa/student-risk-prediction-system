@@ -4,10 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { clearSession } from '../lib/session';
 import Button from '../components/Button';
+import { homePath } from '../lib/roles';
 
 const Login = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [nip, setNip] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -18,11 +19,7 @@ const Login = () => {
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
-        if (user.role === 'admin') {
-          navigate('/admin/model');
-        } else {
-          navigate('/upload');
-        }
+        navigate(homePath(user.role));
       } catch (e) {
         localStorage.removeItem('user');
       }
@@ -36,7 +33,7 @@ const Login = () => {
 
     try {
       const response = await axios.post('/api/login', {
-        email,
+        nip,
         password
       });
 
@@ -48,11 +45,7 @@ const Login = () => {
         localStorage.setItem('token', response.data.token);
       }
 
-      if (user.role === 'admin') {
-        navigate('/admin/model');
-      } else {
-        navigate('/upload');
-      }
+      navigate(homePath(user.role));
     } catch (err) {
       setError(err.response?.data?.error || 'Gagal terhubung ke server');
     } finally {
@@ -95,16 +88,16 @@ const Login = () => {
 
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
-                <label htmlFor="email" className="block text-sm font-semibold text-secondary mb-2">Email</label>
+                <label htmlFor="nip" className="block text-sm font-semibold text-secondary mb-2">NIP</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                     <User className="h-5 w-5" />
                   </div>
-                  <input type="email" id="email" name="email" autoComplete="email" required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                  <input type="text" id="nip" name="nip" inputMode="numeric" autoComplete="username" required
+                    value={nip}
+                    onChange={(e) => setNip(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"
-                    placeholder="Masukkan alamat email Anda" />
+                    placeholder="Masukkan NIP Anda" />
                 </div>
               </div>
 

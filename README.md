@@ -21,7 +21,8 @@
 - **Cetak Laporan PDF**: Fitur ekspor laporan hasil prediksi dan detail mahasiswa ke format PDF (`jsPDF` & `jspdf-autotable`).
 - **Multi-Role User Control**:
   - **End-User / DPA / Kaprodi**: Akses instan prediksi batch, filter bimbingan DPA/Prodi, dan pemantauan mahasiswa berisiko.
-  - **Admin System**: Kebebasan eksperimen training model, pengaturan hyperparameter, dan manajemen riwayat batch.
+  - **Admin System**: Kebebasan eksperimen training model, pengaturan hyperparameter, manajemen riwayat batch, dan pengelolaan akun (termasuk menambah admin lain).
+  - **BAPSI**: Mengunggah dan mengelola berkas data mahasiswa terbaru (PMB & akademik) di halaman **Berkas Mahasiswa** bergaya Google Drive (folder bertingkat). Berkas ini bisa diunduh semua peran dan langsung dipilih di halaman Preprocessing Data.
 
 ---
 
@@ -46,7 +47,17 @@
 ```text
 sisip-program/
 ├── backend/                 # Backend API (Flask, TensorFlow, SQLite)
-│   ├── app.py               # Main Flask Server & REST API Endpoint
+│   ├── app.py               # Titik masuk server (gunicorn app:app), hanya create_app()
+│   ├── sisip/               # Seluruh kode backend
+│   │   ├── config.py        # Pengaturan dari environment & daftar peran
+│   │   ├── constants.py     # Skema kolom internal (kontrak dengan model terlatih)
+│   │   ├── data_format.py   # Format berkas mentah yang bisa diatur admin (menu Format Data)
+│   │   ├── db.py            # Koneksi SQLite, skema, migrasi
+│   │   ├── auth.py          # Token login & dekorator hak akses
+│   │   ├── ml.py            # Arsitektur 2D CNN & registri berkas model
+│   │   ├── preprocessing.py # Penggabungan berkas PMB + akademik jadi data latih
+│   │   └── routes/          # Endpoint API, satu Flask Blueprint per fitur
+│   ├── e2e_test.py          # Uji end-to-end seluruh API
 │   ├── requirements.txt     # Library Python & Dependensi Machine Learning
 │   └── sisip_database.db    # Database SQLite (diabaikan dari Git)
 ├── frontend/                # Frontend Web Application (React + Vite)
@@ -132,8 +143,12 @@ Setelah Backend dan Frontend berhasil dijalankan, ikuti langkah-langkah berikut 
 
 2. **Login sebagai Super Admin**:
    Gunakan kredensial bawaan (*default*) untuk masuk sebagai administrator:
-   - **Email**: `admin@gmail.com`
-   - **Password**: `admin123`
+   - **NIP**: `235314122`
+   - **Password**: nilai `SISIP_ADMIN_PASSWORD` di `.env` (lihat `.env.example`). Tanpa `.env`, password bawaannya `change-me-strong-password`; segera ganti.
+
+   Semua akun login memakai **NIP**. Akun demo per peran (jika `SISIP_SEED_DEMO_USERS=1`):
+   `900000000000000001` admin (`Admin#2026`), `...002` DPA (`Dpa#2026`),
+   `...003` Kaprodi (`Kaprodi#2026`), `...004` BAPSI (`Bapsi#2026`).
 
 3. **Melatih Model AI (Wajib Pertama Kali)**:
    - Sebelum bisa melakukan prediksi, Admin wajib melatih model AI terlebih dahulu.

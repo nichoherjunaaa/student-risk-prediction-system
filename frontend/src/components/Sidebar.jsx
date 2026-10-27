@@ -8,28 +8,29 @@ import {
   Settings2,
   Users,
   Wand2,
+  FolderOpen,
+  TableProperties,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { clearSession } from "../lib/session";
-
-// Label peran ditulis lengkap supaya akun Kaprodi/Dekan tidak lagi ditampilkan
-// sebagai "DPA" hanya karena bukan admin.
-const ROLE_LABELS = {
-  admin: "SUPER ADMIN",
-  kaprodi: "KAPRODI",
-  dekan: "DEKAN",
-  dpa: "DPA",
-};
+import { PREDIKSI_ROLES, roleLabel } from "../lib/roles";
 
 // Menu dikelompokkan mengikuti alur kerja: siapkan data & model dulu, baru
 // jalankan prediksi, sisanya administrasi. `match` menentukan menu induk mana
 // yang menyala saat pengguna berada di halaman anak (detail mahasiswa, detail
-// batch, form pengguna), supaya orientasi tidak hilang.
+// batch, form pengguna), supaya orientasi tidak hilang. `roles` membatasi
+// peran yang melihat grup itu; tanpa `roles`, grup tampil untuk semua peran.
 const MENU_GROUPS = [
   {
     label: "Data & Model",
-    adminOnly: true,
+    roles: ["admin"],
     items: [
+      {
+        to: "/admin/format-data",
+        label: "Format Data",
+        icon: TableProperties,
+        match: (p) => p === "/admin/format-data",
+      },
       {
         to: "/admin/preprocessing",
         label: "Preprocessing Data",
@@ -46,6 +47,7 @@ const MENU_GROUPS = [
   },
   {
     label: "Prediksi",
+    roles: PREDIKSI_ROLES,
     items: [
       {
         to: "/upload",
@@ -63,8 +65,19 @@ const MENU_GROUPS = [
     ],
   },
   {
+    label: "Data Mahasiswa",
+    items: [
+      {
+        to: "/berkas",
+        label: "Berkas Mahasiswa",
+        icon: FolderOpen,
+        match: (p) => p === "/berkas",
+      },
+    ],
+  },
+  {
     label: "Administrasi",
-    adminOnly: true,
+    roles: ["admin"],
     items: [
       {
         to: "/admin/users",
@@ -93,7 +106,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     navigate("/login");
   };
 
-  let user = { email: "@admin.com", name: "Staf Admin", role: "admin" };
+  let user = { nip: "", name: "Pengguna", role: "" };
   try {
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
@@ -103,8 +116,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     console.error("Gagal membaca data user", e);
   }
 
-  const { email: userEmail, name: userName, role: computedRole } = user;
-  const roleLabel = ROLE_LABELS[computedRole] || String(computedRole || "Pengguna").toUpperCase();
+  const { nip: userNip, name: userName, role: computedRole, prodi: userProdi } = user;
   const initials = (userName || "?")
     .split(/\s+/)
     .slice(0, 2)
@@ -113,7 +125,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     .toUpperCase();
 
   const groups = MENU_GROUPS.filter(
-    (g) => !g.adminOnly || computedRole === "admin",
+    (g) => !g.roles || g.roles.includes(computedRole),
   );
 
   return (
@@ -151,7 +163,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         <div className="px-6 py-4 border-b border-white/10 shrink-0">
           <div className="bg-white/10 px-4 py-2.5 rounded-lg">
             <span className="text-sm font-bold tracking-wide text-white uppercase">
-              {roleLabel}
+              {roleLabel(computedRole)}
             </span>
           </div>
         </div>
@@ -193,7 +205,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               <p className="text-sm font-bold text-white leading-tight truncate">
                 {userName}
               </p>
-              <p className="text-xs text-white/60 truncate">{userEmail}</p>
+              <p className="text-xs text-white/60 truncate">
+                {[userNip && `NIP ${userNip}`, userProdi].filter(Boolean).join(" · ")}
+              </p>
             </div>
           </div>
           <button

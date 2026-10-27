@@ -3,7 +3,8 @@ import { Save, ArrowLeft, AlertTriangle, Loader2, Eye, EyeOff } from "lucide-rea
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Button from "../components/Button";
-import { ROLE_OPTIONS } from "../lib/roles";
+import { ROLE_OPTIONS, PRODI_OPTIONAL_ROLES, PRODI_REQUIRED_ROLES } from "../lib/roles";
+import { useProdiList } from "../lib/prodi";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -14,8 +15,9 @@ const AdminUserForm = () => {
   const [showPassword, setShowPassword] = useState(false);
   const { id } = useParams();
   const navigate = useNavigate();
+  const prodiList = useProdiList();
 
-  const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "dpa" });
+  const [formData, setFormData] = useState({ name: "", nip: "", password: "", role: "dpa", prodi: "" });
 
   useEffect(() => {
     if (id) {
@@ -28,7 +30,8 @@ const AdminUserForm = () => {
       const response = await axios.get(`/api/users/${userId}`);
       setFormData({
         name: response.data.name,
-        email: response.data.email,
+        nip: response.data.nip || "",
+        prodi: response.data.prodi || "",
         role: response.data.role || "dpa",
         password: "",
       });
@@ -100,15 +103,19 @@ const AdminUserForm = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Alamat Email</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">NIP (Nomor Induk Pegawai)</label>
                 <input
-                  type="email"
+                  type="text"
+                  inputMode="numeric"
                   required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition"
-                  placeholder="nama@contoh.ac.id"
+                  pattern="[0-9 .\-]{5,30}"
+                  title="NIP hanya berisi angka (spasi/titik/strip boleh, akan dibuang)"
+                  value={formData.nip}
+                  onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition font-mono"
+                  placeholder="Contoh: 198701012010011001"
                 />
+                <p className="text-xs text-gray-500 mt-2">Dipakai sebagai identitas login pengguna.</p>
               </div>
 
               <div>
@@ -126,6 +133,28 @@ const AdminUserForm = () => {
                 </select>
               </div>
               
+              {(PRODI_REQUIRED_ROLES.includes(formData.role) || PRODI_OPTIONAL_ROLES.includes(formData.role)) && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Program Studi</label>
+                  <select
+                    value={formData.prodi}
+                    required={PRODI_REQUIRED_ROLES.includes(formData.role)}
+                    onChange={(e) => setFormData({ ...formData, prodi: e.target.value })}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition"
+                  >
+                    <option value="">
+                      {PRODI_REQUIRED_ROLES.includes(formData.role) ? "-- Pilih program studi --" : "Semua program studi (tingkat fakultas)"}
+                    </option>
+                    {prodiList.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Pengguna hanya memprediksi dan melihat hasil untuk program studi ini. Berkas dari BAPSI tetap bisa diunduh semua prodi.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Kata Sandi {id && <span className="text-gray-500 font-normal">(Biarkan kosong jika tidak ingin diubah)</span>}

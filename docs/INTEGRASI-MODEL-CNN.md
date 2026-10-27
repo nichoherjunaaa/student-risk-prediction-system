@@ -7,6 +7,11 @@ ke sistem, dan memutuskan sisanya perlu diintegrasikan atau tidak.
 
 Catatan kerja — belum ada satu pun rekomendasi di dokumen ini yang dikerjakan.
 
+> **Catatan (25 Oktober 2026):** `backend/app.py` sudah dipecah menjadi paket
+> `backend/sisip/`. Rujukan baris `app.py:NNN` di bawah mengacu ke versi lama;
+> training kini ada di `sisip/routes/training.py`, prediksi di
+> `sisip/routes/prediction.py`, dan arsitektur CNN di `sisip/ml.py`.
+
 ---
 
 ## Ringkasan
@@ -45,7 +50,7 @@ nyata, bukan sekadar kurang lengkap.
 | `np.pad` + `reshape(-1, h, w, 1)` | `app.py:892-900` |
 | `cnn_model(...)` varian `model_f` (filter 8→16, dense 64→32, dropout 0.3) | `build_cnn_model()` (`app.py:274`), arsitektur sama; dropout jadi parameter |
 | `compute_class_weight("balanced")` | `app.py:924` |
-| `EarlyStopping(val_loss, restore_best_weights)` | `app.py:930` — patience 5 (notebook 10) |
+| `EarlyStopping(val_loss, restore_best_weights)` | `app.py:930` — patience 10, sama dengan notebook |
 | `model.fit(...)` | `app.py:931` |
 
 **Perbaikan atas notebook:** `find_grid_dimensions` versi notebook hanya mencari

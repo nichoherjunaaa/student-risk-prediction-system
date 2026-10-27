@@ -89,7 +89,7 @@ Isi file `.env` yang di-upload sebagai `sisip-env`
 
 ```env
 SISIP_HTTP_PORT=8090
-SISIP_ADMIN_EMAIL=admin@gmail.com
+SISIP_ADMIN_NIP=235314122
 SISIP_ADMIN_PASSWORD=GANTI_PASSWORD_KUAT
 ```
 

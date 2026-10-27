@@ -29,6 +29,7 @@ _tmp = tempfile.mkdtemp(prefix='sisip-verify-')
 os.environ['SISIP_DB_FILE'] = os.path.join(_tmp, 'verify.db')
 os.environ['SISIP_MODEL_DIR'] = os.path.join(_tmp, 'models')
 os.environ['SISIP_SECRET_KEY'] = 'verify-secret'
+os.environ['SISIP_FILES_DIR'] = os.path.join(_tmp, 'files')
 os.environ['SISIP_SEED_DEMO_USERS'] = '1'
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 os.makedirs(os.environ['SISIP_MODEL_DIR'], exist_ok=True)
@@ -38,6 +39,7 @@ import numpy as np                      # noqa: E402
 import pandas as pd                     # noqa: E402
 import joblib                           # noqa: E402
 import app as A                         # noqa: E402
+from sisip import config                # noqa: E402
 
 client = A.app.test_client()
 PRODI = 'Informatika'
@@ -52,8 +54,8 @@ def sheet_bytes(df, name):
 
 
 def main():
-    token = client.post('/api/login', json={'email': 'admin@gmail.com',
-                                            'password': 'admin123'}).get_json()['token']
+    token = client.post('/api/login', json={'nip': config.DEFAULT_ADMIN_NIP,
+                                            'password': config.DEFAULT_ADMIN_PASSWORD}).get_json()['token']
     H = {'Authorization': f'Bearer {token}'}
 
     print("=" * 74)
