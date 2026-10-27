@@ -16,7 +16,7 @@
 - **Interactive Analytics Dashboard**: Visualisasi ringkasan statistik mahasiswa berpotensi sisip vs aman secara *real-time* dengan grafik Chart.js.
 - **Filter Spesifik**: Filter data berdasarkan Program Studi (Prodi), Angkatan, dan Semester.
 - **2D CNN Tabular Engine**: Menggunakan arsitektur Convolutional Neural Network 2D yang diadaptasi khusus untuk pengenalan pola data tabular akademis.
-- **Batch Prediction via Excel**: Unggah berkas Excel rekap nilai mahasiswa untuk prediksi massal otomatis beserta unduh template format Excel.
+- **Prediksi dari Berkas Mahasiswa**: Prediksi massal per prodi dan angkatan langsung dari berkas PMB & akademik yang diunggah BAPSI, diolah sama seperti data latih model.
 - **Detail Mahasiswa & Transkrip Akademik**: Modal/halaman khusus rincian mahasiswa (NIM, Nama, Prodi, IPK per semester, dan riwayat nilai mata kuliah).
 - **Cetak Laporan PDF**: Fitur ekspor laporan hasil prediksi dan detail mahasiswa ke format PDF (`jsPDF` & `jspdf-autotable`).
 - **Multi-Role User Control**:

@@ -3,7 +3,7 @@ import { BarChart2, Database, Cpu, AlertTriangle, Loader2, RefreshCw } from "luc
 import axios from "axios";
 import Button from "./Button";
 
-// Prediksi tanpa template: server membentuk tabel uji (setara sheet TEST_SEM<n>
+// Prediksi dari Berkas Mahasiswa: server membentuk tabel uji (setara sheet TEST_SEM<n>
 // di cnn_tabular_2d_v2.py) langsung dari berkas PMB & akademik di Berkas
 // Mahasiswa, lalu memprediksi dengan model aktif prodi. Berkas terbaru dipilih
 // otomatis, tetapi bisa diganti bila BAPSI mengunggah lebih dari satu berkas.
@@ -98,8 +98,8 @@ const AutoPredictCard = ({ prodi, setProdi, prodiList, lockedProdi, runWithProgr
         <Database className="text-primary" /> Prediksi dari Berkas Mahasiswa
       </h2>
       <p className="text-sm text-gray-500 max-w-3xl mb-6">
-        Tidak perlu mengisi template. Sistem mengolah berkas PMB dan akademik yang diunggah BAPSI
-        dengan cara yang sama seperti data latih model, lalu memprediksi seluruh mahasiswa pada
+        Sistem mengolah berkas PMB dan akademik yang diunggah BAPSI dengan cara yang sama seperti
+        data latih model, lalu memprediksi seluruh mahasiswa pada
         angkatan yang dipilih.
       </p>
 

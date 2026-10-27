@@ -93,7 +93,7 @@ const Login = () => {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                     <User className="h-5 w-5" />
                   </div>
-                  <input type="text" id="nip" name="nip" inputMode="numeric" autoComplete="username" required
+                  <input type="text" id="nip" name="nip" autoComplete="username" required
                     value={nip}
                     onChange={(e) => setNip(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background/50 focus:bg-surface"

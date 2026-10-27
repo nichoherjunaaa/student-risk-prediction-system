@@ -16,7 +16,9 @@ PREPROCESS_TTL = int(os.environ.get('SISIP_PREPROCESS_TTL', str(24 * 3600)))
 FILES_DIR = os.environ.get('SISIP_FILES_DIR', os.path.join(DATA_DIR, 'files'))
 FILE_MAX_BYTES = int(os.environ.get('SISIP_FILE_MAX_MB', '50')) * 1024 * 1024
 
-DEFAULT_ADMIN_NIP = os.environ.get('SISIP_ADMIN_NIP', '235314122')
+# Dinormalisasi seperti auth.norm_nip (tanpa spasi/titik/strip, huruf kapital).
+DEFAULT_ADMIN_NIP = ''.join(c for c in os.environ.get('SISIP_ADMIN_NIP', '235314122')
+                            if not c.isspace() and c not in '.-').upper()
 DEFAULT_ADMIN_PASSWORD = os.environ.get('SISIP_ADMIN_PASSWORD', 'change-me-strong-password')
 SEED_DEMO_USERS = os.environ.get('SISIP_SEED_DEMO_USERS', '1').lower() in ('1', 'true', 'yes')
 

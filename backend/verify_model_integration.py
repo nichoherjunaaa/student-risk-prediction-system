@@ -7,7 +7,8 @@ prediksi, dengan cara:
   1. memecah TRAIN_SEM3 (604 baris berlabel) menjadi 80% latih / 20% uji tahan,
   2. melatih model baru lewat POST /api/train (bukan memanggil Keras langsung),
   3. mengaktifkannya lewat POST /api/models/<id>/activate,
-  4. memprediksi 20% data tahan lewat POST /api/predict,
+  4. memprediksi 20% data tahan dengan predictor.run_model (inti prediksi yang
+     sama dengan POST /api/predict/berkas),
   5. membandingkan hasil prediksi dengan label sebenarnya.
 
 Semua dikerjakan di database + folder model sementara; data asli tidak tersentuh.
@@ -116,16 +117,15 @@ def main():
     print(f"   aktif   : {act[0]}  (== model baru: {act[0] == vname})")
 
     print("\n" + "=" * 74)
-    print(" 4. PREDIKSI 20% data tahan lewat POST /api/predict")
+    print(" 4. PREDIKSI 20% data tahan lewat predictor.run_model (model aktif)")
     print("=" * 74)
-    r = client.post('/api/predict', headers=H, content_type='multipart/form-data', data={
-        'file': (sheet_bytes(holdout_nolabel, 'TEST_SEM3'), 'hold.xlsx'),
-        'prodi': PRODI, 'angkatan': '', 'semester': '3',
-    })
-    assert r.status_code == 200, r.data[:400]
-    body = r.get_json()
-    preds = [str(x['prediction']).strip().upper() for x in body['results']]
-    print(f"   status  : 200  total={body['total']}  SISIP={body['atRisk']}  TIDAK SISIP={body['safe']}")
+    # Data tahan berformat lama (tanpa pasangan berkas PMB/akademik), jadi
+    # inti prediksinya dipanggil langsung, bukan lewat /api/predict/berkas.
+    from sisip.predictor import align_features, load_active_model, run_model
+    am = load_active_model(PRODI)
+    features, _ = align_features(holdout_nolabel, am)
+    preds = [str(x).strip().upper() for x in run_model(features, am)]
+    print(f"   total={len(preds)}  SISIP={preds.count('SISIP')}  TIDAK SISIP={preds.count('TIDAK SISIP')}")
     assert len(preds) == len(truth), f"jumlah hasil {len(preds)} != {len(truth)}"
 
     print("\n" + "=" * 74)

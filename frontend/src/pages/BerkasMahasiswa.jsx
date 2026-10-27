@@ -28,7 +28,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 
 // Harus sama dengan FILE_KATEGORI / FILE_EXT di backend/sisip/routes/files.py. Berkas PMB dan
 // akademik yang diunggah di sini muncul sebagai pilihan di halaman
-// Preprocessing Data dan prediksi tanpa template, jadi keduanya dibatasi ke
+// Preprocessing Data dan prediksi, jadi keduanya dibatasi ke
 // format yang bisa dibaca preprocessing: Excel (.xlsx) atau CSV.
 const KATEGORI = {
   pmb: { label: "Berkas PMB", short: "PMB", accept: ".xlsx,.csv", cls: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -192,7 +192,7 @@ const UploadDialog = ({ folderName, initialFiles, onUpload, onClose }) => {
           <p className="text-xs text-gray-500 mt-2">
             {kategori === "lainnya"
               ? "Berkas pendukung, tidak dipakai preprocessing."
-              : "Dipakai Preprocessing Data dan prediksi tanpa template (berkas terbaru dipakai otomatis). Format: .xlsx atau .csv."}
+              : "Dipakai Preprocessing Data dan prediksi (berkas terbaru terpilih otomatis). Format: .xlsx atau .csv."}
           </p>
         </div>
 

@@ -1,7 +1,7 @@
 """End-to-end smoke test untuk API SISIP.
 
 Menjalankan seluruh alur lewat Flask test client, tanpa perlu menyalakan server:
-autentikasi, hak akses per-role, unduh template, prediksi, dan perbaikan-perbaikan
+autentikasi, hak akses per-role, prediksi dari Berkas Mahasiswa, dan perbaikan-perbaikan
 terbaru (dedup batch per-semester, filter angkatan tahan sel kosong, metrik model
 epoch terbaik).
 
@@ -131,71 +131,60 @@ def run():
     check('token dipalsukan -> 401', r.status_code == 401, r.status_code)
 
     prodi = active_prodi()
-    print(f"\n=== 2. Template & prediksi (prodi aktif: {prodi}) ===")
+    print(f"\n=== 2. Prediksi dari Berkas Mahasiswa (prodi aktif: {prodi}) ===")
+    # BAPSI mengunggah berkas PMB & akademik; prediksi selalu memakai berkas di
+    # Berkas Mahasiswa. Berkas ini dihapus lagi sebelum bagian 13.
+    bapsi_tok = login(BAPSI_NIP, 'Bapsi#2026')
+    setup_ids = []
+    for kategori, nama in (('pmb', '20260605_Data_PMB.xlsx'), ('akademik', 'Data_akademik_te_tm_mat.xlsx')):
+        with open(os.path.join(HERE, '..', nama), 'rb') as f:
+            r = client.post('/api/files', headers=auth(bapsi_tok), content_type='multipart/form-data',
+                            data={'kategori': kategori, 'folder_id': '', 'files': (io.BytesIO(f.read()), nama)})
+        setup_ids.append(r.get_json()['files'][0]['id'])
+    check('BAPSI unggah berkas PMB & akademik -> 201', len(setup_ids) == 2)
 
-    r = client.get(f'/api/template/predict?prodi={prodi}&angkatan=2023&semester=3', headers=auth(dpa_tok))
-    check('unduh template -> 200 xlsx', r.status_code == 200 and 'spreadsheet' in r.headers.get('Content-Type', ''),
-          r.status_code)
-    template_bytes = r.data
+    def predict(angkatan='2023', tok=dpa_tok, **extra):
+        return client.post('/api/predict/berkas', headers=auth(tok),
+                           json={'prodi': prodi, 'angkatan': angkatan, **extra})
 
-    def predict(sem, tok=dpa_tok, data_override=None):
-        payload = {
-            'file': (io.BytesIO(data_override or template_bytes), 'template.xlsx'),
-            'prodi': prodi, 'angkatan': '2023', 'semester': str(sem),
-        }
-        return client.post('/api/predict', headers=auth(tok), data=payload,
-                           content_type='multipart/form-data')
-
-    r = predict(3)
-    check('prediksi pakai template -> 200', r.status_code == 200, r.data[:200])
+    r = predict()
+    check('prediksi dari berkas -> 200', r.status_code == 200, r.data[:200])
     body = r.get_json() if r.status_code == 200 else {}
     check('hasil prediksi bervariasi (bukan satu kelas)',
           body.get('atRisk', 0) > 0 and body.get('safe', 0) > 0,
           f"atRisk={body.get('atRisk')} safe={body.get('safe')}")
-    check('respons menyertakan semester', body.get('semester') == '3', body.get('semester'))
+    check('respons menyertakan semester = batas semester model', str(body.get('semester')) == '3',
+          body.get('semester'))
+    check('endpoint template sudah dihapus',
+          client.get(f'/api/template/predict?prodi={prodi}', headers=auth(dpa_tok)).status_code == 404
+          and client.post('/api/predict', headers=auth(dpa_tok), data={}).status_code in (404, 405))
 
-    print("\n=== 3. Dedup batch per-semester (perbaikan #2) ===")
-    # Pakai dataset asli (tanpa kolom Semester) supaya filter semester dilewati
-    # dan nilai semester tersimpan apa adanya dari parameter.
-    with open(DATASET, 'rb') as f:
-        ds_bytes = f.read()
-
-    def predict_ds(sem):
-        return client.post('/api/predict', headers=auth(dpa_tok), data={
-            'file': (io.BytesIO(ds_bytes), 'DATA.xlsx'),
-            'prodi': 'Informatika', 'angkatan': '2023', 'semester': str(sem),
-        }, content_type='multipart/form-data')
-
-    def batch_ids_for(sem):
+    print("\n=== 3. Dedup batch per angkatan (perbaikan #2) ===")
+    def batch_ids_for(angkatan):
         conn = sqlite3.connect(_tmp_db)
         rows = conn.execute(
-            "SELECT id FROM batches WHERE prodi='Informatika' AND IFNULL(angkatan,'')='2023' AND IFNULL(semester,'')=?"
-            " AND deleted_at IS NULL AND user_id=?",
-            (str(sem), token_serializer.loads(dpa_tok)['uid'])).fetchall()
+            "SELECT id FROM batches WHERE prodi=? AND IFNULL(angkatan,'')=? AND deleted_at IS NULL AND user_id=?",
+            (prodi, str(angkatan), token_serializer.loads(dpa_tok)['uid'])).fetchall()
         conn.close()
         return [x[0] for x in rows]
 
-    check('prediksi semester 3 -> 200', predict_ds(3).status_code == 200)
-    check('prediksi semester 5 -> 200', predict_ds(5).status_code == 200)
-    s3, s5 = batch_ids_for(3), batch_ids_for(5)
-    check('batch semester 3 tetap ada setelah prediksi semester 5', len(s3) == 1, s3)
-    check('batch semester 5 dibuat terpisah', len(s5) == 1 and s5 != s3, (s3, s5))
-    predict_ds(3)
-    check('prediksi ulang semester 3 menimpa, bukan menggandakan',
-          batch_ids_for(3) != s3 and len(batch_ids_for(3)) == 1)
+    check('prediksi angkatan 2022 -> 200', predict('2022').status_code == 200)
+    a23, a22 = batch_ids_for(2023), batch_ids_for(2022)
+    check('batch angkatan 2023 tetap ada setelah prediksi angkatan 2022', len(a23) == 1, a23)
+    check('batch angkatan 2022 dibuat terpisah', len(a22) == 1 and a22 != a23, (a23, a22))
+    predict('2023')
+    check('prediksi ulang angkatan 2023 menimpa, bukan menggandakan',
+          batch_ids_for(2023) != a23 and len(batch_ids_for(2023)) == 1)
 
     print("\n=== 3b. Hasil prediksi terpisah per user + soft delete ===")
     kaprodi_tok = login(KAPRODI_NIP, 'Kaprodi#2026')
     kaprodi_uid = token_serializer.loads(kaprodi_tok)['uid']
-    dpa_s3 = batch_ids_for(3)
-    r = client.post('/api/predict', headers=auth(kaprodi_tok), data={
-        'file': (io.BytesIO(ds_bytes), 'DATA.xlsx'),
-        'prodi': 'Informatika', 'angkatan': '2023', 'semester': '3',
-        'uploaded_by': 'Nama Palsu',
-    }, content_type='multipart/form-data')
+    dpa_s3 = batch_ids_for(2023)
+    r = predict(tok=kaprodi_tok, uploaded_by='Nama Palsu')
     check('prediksi kaprodi (kombinasi sama dgn DPA) -> 200', r.status_code == 200)
     kap_batch = r.get_json()['batch_id']
-    check('prediksi user lain tidak menimpa batch DPA', set(dpa_s3) <= set(batch_ids_for(3)), (dpa_s3, batch_ids_for(3)))
+    check('prediksi user lain tidak menimpa batch DPA', set(dpa_s3) <= set(batch_ids_for(2023)),
+          (dpa_s3, batch_ids_for(2023)))
 
     conn = sqlite3.connect(_tmp_db)
     owner, name = conn.execute('SELECT user_id, uploaded_by FROM batches WHERE id=?', (kap_batch,)).fetchone()
@@ -245,25 +234,10 @@ def run():
     check('dpa masih melihat batch miliknya', dpa_s3[0] in
           {b['id'] for b in client.get('/api/history', headers=auth(dpa_tok)).get_json()['batches']})
 
-    print("\n=== 4. Diagnosa berkas tidak cocok ===")
-    r = client.post('/api/predict', headers=auth(dpa_tok), data={
-        'file': (io.BytesIO(template_bytes), 't.xlsx'),
-        'prodi': prodi, 'angkatan': '2099', 'semester': '3',
-    }, content_type='multipart/form-data')
-    check('angkatan tidak cocok -> 400 dengan penjelasan',
-          r.status_code == 400 and 'Angkatan' in r.get_json().get('error', ''), r.get_json())
-
-    print("\n=== 5. Regresi dataset asli (tanpa kolom Prodi/Semester) ===")
-    with open(DATASET, 'rb') as f:
-        ds = f.read()
-    r = client.post('/api/predict', headers=auth(dpa_tok), data={
-        'file': (io.BytesIO(ds), 'DATA.xlsx'),
-        'prodi': 'Informatika', 'angkatan': '2023', 'semester': '3',
-    }, content_type='multipart/form-data')
-    check('prediksi dataset asli -> 200', r.status_code == 200, r.data[:200])
-    if r.status_code == 200:
-        jb = r.get_json()
-        check('dataset asli menghasilkan >0 baris', jb.get('total', 0) > 0, jb.get('total'))
+    print("\n=== 4. Diagnosa angkatan tidak ada di berkas ===")
+    r = predict('2099')
+    check('angkatan tidak ada -> 400 dengan penjelasan',
+          r.status_code == 400 and 'angkatan' in r.get_json().get('error', '').lower(), r.get_json())
 
     print("\n=== 6. Filter angkatan tahan sel kosong saat training (perbaikan #4) ===")
     import pandas as pd
@@ -305,7 +279,13 @@ def run():
     r = new_user(nip='19870101 201001 1 001', name='Admin Kedua', password='Adm2#2026', role='admin')
     check('admin bisa menambah akun admin lain -> 201', r.status_code == 201, r.get_json())
     check('admin kedua bisa login dgn NIP yang dinormalisasi', bool(login('198701012010011001', 'Adm2#2026')))
-    check('NIP mengandung huruf -> 400', new_user(nip='12AB345', name='X', password='x', role='dpa').status_code == 400)
+    r = new_user(nip='dsn-12ab345', name='Dosen Huruf', password='Dsn#2026', role='admin')
+    check('NIP berisi huruf & angka -> 201, disimpan kapital',
+          r.status_code == 201 and any(u['nip'] == 'DSN12AB345' for u in
+                                       client.get('/api/users', headers=auth(admin_tok)).get_json()), r.get_json())
+    check('login NIP huruf tidak peka huruf besar/kecil',
+          bool(login('dsn12ab345', 'Dsn#2026')) and bool(login('DSN-12AB345', 'Dsn#2026')))
+    check('NIP dengan simbol lain -> 400', new_user(nip='12/AB345', name='X', password='x', role='dpa').status_code == 400)
     check('peran tak dikenal -> 400', new_user(nip='55555', name='X', password='x', role='rektor').status_code == 400)
     check('NIP duplikat -> 400', new_user(nip=DPA_NIP, name='X', password='x', role='dpa').status_code == 400)
     ulist = client.get('/api/users', headers=auth(admin_tok)).get_json()
@@ -322,8 +302,8 @@ def run():
     bapsi_tok = login(BAPSI_NIP, 'Bapsi#2026')
     check('login demo BAPSI -> token', bool(bapsi_tok))
     check('BAPSI akses /api/history -> 403', client.get('/api/history', headers=auth(bapsi_tok)).status_code == 403)
-    check('BAPSI akses /api/predict -> 403',
-          client.post('/api/predict', headers=auth(bapsi_tok), data={}).status_code == 403)
+    check('BAPSI akses /api/predict/berkas -> 403',
+          client.post('/api/predict/berkas', headers=auth(bapsi_tok), json={}).status_code == 403)
     check('DPA buat folder -> 403',
           client.post('/api/folders', headers=auth(dpa_tok), json={'name': 'x'}).status_code == 403)
 
@@ -478,17 +458,12 @@ def run():
     r = client.get('/api/prodi', headers=auth(sp_tok)).get_json()
     check('daftar prodi DPA terkunci ke prodinya', r == {'prodi': [prodi], 'locked': prodi}, r)
 
-    r = client.post('/api/predict', headers=auth(sp_tok), content_type='multipart/form-data', data={
-        'file': (io.BytesIO(template_bytes), 'template.xlsx'),
-        'prodi': lain, 'angkatan': '2023', 'semester': '3'})
+    r = client.post('/api/predict/berkas', headers=auth(sp_tok), json={'prodi': lain, 'angkatan': '2023'})
     check('prodi dari form diabaikan, prediksi memakai prodi akun',
           r.status_code == 200 and r.get_json()['prodi'] == prodi, r.get_json() if r.status_code != 200 else '')
     sp_batch = r.get_json().get('batch_id')
     hist = client.get('/api/history', headers=auth(sp_tok)).get_json()['batches']
     check('history hanya berisi prodi akun', hist and all(b['prodi'] == prodi for b in hist))
-    r = client.get(f'/api/template/predict?prodi={lain}', headers=auth(sp_tok))
-    check('template selalu untuk prodi akun',
-          r.status_code == 200 and prodi.lower().replace(' ', '_') in r.headers.get('Content-Disposition', ''))
 
     sp_uid = token_serializer.loads(sp_tok)['uid']
     r = client.put(f'/api/users/{sp_uid}', headers=auth(admin_tok),
@@ -512,7 +487,9 @@ def run():
     check('prodi yang masih dipakai akun tidak bisa dihapus -> 400', r.status_code == 400, r.get_json())
 
 
-    print("\n=== 13. Prediksi tanpa template (setara TEST_SEM3 di cnn_tabular_2d_v2.py) ===")
+    print("\n=== 13. Prediksi dari Berkas Mahasiswa (setara TEST_SEM3 di cnn_tabular_2d_v2.py) ===")
+    for fid in setup_ids:
+        client.delete(f'/api/files/{fid}', headers=auth(bapsi_tok))
     import joblib
     import numpy as np
     from tensorflow import keras
@@ -552,7 +529,7 @@ def run():
     check('angkatan tidak ada -> 400', r.status_code == 400)
     r = client.post('/api/predict/berkas', headers=auth(dpa_tok), json={'prodi': prodi, 'angkatan': '2023'})
     auto = r.get_json()
-    check('prediksi tanpa template -> 200', r.status_code == 200, auto if r.status_code != 200 else '')
+    check('prediksi dari berkas terbaru -> 200', r.status_code == 200, auto if r.status_code != 200 else '')
     check('semua fitur model terisi dari berkas', auto.get('sumber', {}).get('kecocokan_fitur') == 1.0,
           auto.get('sumber'))
     pred_auto = {x['nim']: x['prediction'] for x in auto.get('results', [])}
@@ -586,7 +563,7 @@ def run():
     y_pred = (model.predict(X_test_reshaped, verbose=0) > 0.5).astype(int).flatten()
     pred_notebook = dict(zip(test_df['NIM'].astype(str), le_y.inverse_transform(y_pred)))
     check('jumlah mahasiswa dari CSV = dari Excel BAPSI asli', len(pred_notebook) == len(pred_auto))
-    check('hasil prediksi tanpa template = langkah notebook (per NIM)',
+    check('hasil prediksi = langkah notebook (per NIM)',
           pred_auto == {k: str(v) for k, v in pred_notebook.items()},
           sum(pred_auto.get(k) != str(v) for k, v in pred_notebook.items()))
 

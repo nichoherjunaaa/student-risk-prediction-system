@@ -8,7 +8,6 @@ from tensorflow import keras
 from tensorflow.keras import layers
 
 from .config import MODEL_DIR
-from .db import connect
 
 tf.config.threading.set_inter_op_parallelism_threads(1)
 tf.config.threading.set_intra_op_parallelism_threads(1)
@@ -88,22 +87,3 @@ def build_cnn_model(input_shape, n_classes, dropout_rate=0.3):
         ),
     ])
     return model
-
-def active_model_info(prodi=None):
-    """(base_path, prodi_yang_sebenarnya) dari model aktif, atau (None, None)."""
-    try:
-        conn = connect()
-        c = conn.cursor()
-        if prodi:
-            c.execute("SELECT file_path, prodi FROM model_registry WHERE is_active = 1 AND prodi = ? LIMIT 1", (prodi,))
-        else:
-            c.execute("SELECT file_path, prodi FROM model_registry WHERE is_active = 1 ORDER BY id DESC LIMIT 1")
-        row = c.fetchone()
-        conn.close()
-    except Exception:
-        return None, None
-    if not row:
-        return None, None
-    path, prodi_db = row
-    base = resolve_model_path(path)[:-len('.keras')] if path.endswith('.keras') else resolve_model_path(path)
-    return base, prodi_db

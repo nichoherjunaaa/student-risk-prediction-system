@@ -189,7 +189,7 @@ test('04 admin melatih model lalu mengaktifkannya', async ({ page }) => {
   const aktifTM = page.getByRole('row').filter({ hasText: 'Teknik Mesin' }).filter({ hasText: 'Model Aktif' })
   previousActive = (await aktifTM.locator('td').first().innerText()).trim()
 
-  await page.locator('main select').first().selectOption('Teknik Mesin')
+  // Prodi tidak dipilih: dideteksi dari kolom Prodi berkas hasil preprocessing.
   await page.locator('input[type="file"]').setInputFiles(trainFile)
   await shot(page, G, '01-form-latih')
   await page.getByRole('button', { name: 'Latih Model' }).click()
@@ -223,10 +223,13 @@ async function runPrediction(page) {
   await expect(page.getByRole('button', { name: 'Unduh Laporan' })).toBeVisible()
 }
 
-// Prediksi tanpa template dari berkas BAPSI, lalu telusuri hasil sampai detail mata kuliah.
+// Prediksi dari berkas BAPSI, lalu telusuri hasil sampai detail mata kuliah.
+// Dropdown prodi di kartu prediksi (di atasnya ada dropdown berkas PMB & akademik).
+const prodiSelect = (page) => page.locator('main select').filter({ hasText: '-- Pilih Program Studi --' })
+
 async function predictFlow(page, request, account, G, { pilihProdi } = {}) {
   await page.goto('/upload')
-  if (pilihProdi) await page.locator('main select').first().selectOption(pilihProdi)
+  if (pilihProdi) await prodiSelect(page).selectOption(pilihProdi)
   await expect(page.getByText('Berkas PMB', { exact: true })).toBeVisible({ timeout: 120_000 })
   await expect(page.getByRole('button', { name: 'Jalankan Prediksi' })).toBeEnabled()
   await shot(page, G, '01-unggah-otomatis-siap')
@@ -253,26 +256,11 @@ async function predictFlow(page, request, account, G, { pilihProdi } = {}) {
   await shot(page, G, '05-detail-mata-kuliah')
 }
 
-test('05 DPA memprediksi dari berkas dan dari template', async ({ page, request }) => {
+test('05 DPA memprediksi dari berkas', async ({ page, request }) => {
   test.setTimeout(6 * 60_000)
-  const G = '05-dpa-prediksi'
   await loginOk(page, cred(USERS.dpa))
   await expect(page).toHaveURL(/\/upload$/)
-  await predictFlow(page, request, cred(USERS.dpa), G)
-
-  // Mode template: unduh template prodi akun, unggah kembali, jalankan prediksi.
-  await page.goto('/upload')
-  await page.getByRole('tab', { name: 'Unggah Berkas Template' }).click()
-  await page.getByRole('button', { name: /Unduh Template Excel/ }).click()
-  const template = await download(page, () => page.getByRole('menuitem', { name: 'Teknik Mesin' }).click())
-  const selects = page.locator('main select')
-  await selects.nth(0).selectOption('2023')
-  await selects.nth(1).selectOption('3')
-  await page.locator('input[type="file"]').setInputFiles(template)
-  await expect(page.getByText('Pratinjau Lembar Kerja Spreadsheet')).toBeVisible({ timeout: 60_000 })
-  await shot(page, G, '06-template-pratinjau')
-  await runPrediction(page)
-  await shot(page, G, '07-template-hasil')
+  await predictFlow(page, request, cred(USERS.dpa), '05-dpa-prediksi')
   await logout(page)
 })
 
@@ -290,7 +278,7 @@ test('07 Dekan memprediksi prodi pilihan', async ({ page, request }) => {
 
   // Temuan: model aktif Matematika dilatih dari format data lama, sehingga
   // ditolak untuk berkas BAPSI. Pastikan penolakannya tampil jelas ke pengguna.
-  await page.locator('main select').first().selectOption('Matematika')
+  await prodiSelect(page).selectOption('Matematika')
   await expect(page.getByRole('button', { name: 'Jalankan Prediksi' })).toBeEnabled({ timeout: 120_000 })
   await page.getByRole('button', { name: 'Jalankan Prediksi' }).click()
   await expect(page.getByText(/Model aktif prodi Matematika tidak cocok/)).toBeVisible({ timeout: 120_000 })

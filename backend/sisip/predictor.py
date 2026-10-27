@@ -1,4 +1,4 @@
-"""Inti prediksi, dipakai bersama oleh jalur template dan jalur Berkas Mahasiswa.
+"""Inti prediksi untuk tabel uji yang dibentuk dari Berkas Mahasiswa.
 
 Langkahnya mengikuti bagian "Test data" s.d. "predictions" di
 cnn_tabular_2d_v2.py, dengan objek hasil training (encoder, scaler, le_y,

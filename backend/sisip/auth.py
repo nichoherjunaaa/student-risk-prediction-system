@@ -8,14 +8,15 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from .config import SECRET_KEY, TOKEN_MAX_AGE
 from .db import connect
 
-NIP_RE = re.compile(r'^\d{5,20}$')
+NIP_RE = re.compile(r'^[A-Z0-9]{5,20}$')
 token_serializer = URLSafeTimedSerializer(SECRET_KEY, salt='sisip-auth')
 
 
 def norm_nip(value):
-    """NIP sering ditulis berspasi atau bertitik; yang disimpan hanya angkanya.
-    Huruf atau simbol lain tidak dibuang diam-diam, supaya validasi menolaknya."""
-    return re.sub(r'[\s.\-]', '', str(value or ''))
+    """NIP sering ditulis berspasi, bertitik, atau berstrip; pemisah itu dibuang.
+    Huruf disimpan kapital supaya login tidak peka huruf besar/kecil. Simbol lain
+    tidak dibuang diam-diam, supaya validasi menolaknya."""
+    return re.sub(r'[\s.\-]', '', str(value or '')).upper()
 
 
 def make_token(user):

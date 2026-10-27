@@ -1,48 +1,25 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  UploadCloud,
-  BarChart2,
-  AlertTriangle,
-  Loader2,
-  FileSpreadsheet,
-  Download,
-  ChevronDown,
-  Check,
-} from "lucide-react";
+import React, { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
-import Button from "../components/Button";
 import AutoPredictCard from "../components/AutoPredictCard";
 import { useProdiScope } from "../lib/prodi";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 
 const Upload = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
-  const templateMenuRef = useRef(null);
-  const [file, setFile] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [previewData, setPreviewData] = useState(null);
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictProgress, setPredictProgress] = useState(0);
   const [prodi, setProdi] = useState("");
   const { list: prodiList, locked: lockedProdi } = useProdiScope();
+  const navigate = useNavigate();
 
   // Dosen yang terikat prodi tidak memilih prodi; nilainya diisi otomatis.
   useEffect(() => {
     if (lockedProdi) setProdi(lockedProdi);
   }, [lockedProdi]);
-  const [angkatan, setAngkatan] = useState("");
-  const [semester, setSemester] = useState("");
-  // "otomatis": dari Berkas Mahasiswa (tanpa template); "template": unggah berkas sendiri.
-  const [mode, setMode] = useState("otomatis");
-  const navigate = useNavigate();
 
-  // Progress bar + navigasi ke halaman hasil, dipakai kedua mode prediksi.
+  // Progress bar + navigasi ke halaman hasil setelah prediksi selesai.
   const runWithProgress = async (request, onError) => {
-    setLoading(true);
     setIsPredicting(true);
     setPredictProgress(5);
     // Animasi progress bar palsu agar UI terasa interaktif saat backend menghitung matriks CNN
@@ -76,107 +53,6 @@ const Upload = () => {
         );
       }, 500);
     }
-    setLoading(false);
-  };
-
-  // Memanggil pratinjau data excel (10 baris pertama) ke backend
-  const fetchPreview = async (selectedFile, currentProdi, currentAngkatan) => {
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    formData.append("prodi", currentProdi);
-    formData.append("angkatan", currentAngkatan);
-    formData.append("semester", semester);
-    try {
-      const response = await axios.post(
-        "/api/preview",
-        formData,
-      );
-      setPreviewData(response.data);
-    } catch (err) {
-      console.error("Preview error:", err);
-    }
-  };
-
-  useEffect(() => {
-    if (file && (prodi || angkatan)) {
-      fetchPreview(file, prodi, angkatan);
-    }
-  }, [prodi, angkatan]);
-
-  const handleFileChange = async (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
-      setError("");
-      setPreviewData(null);
-      await fetchPreview(selectedFile, prodi, angkatan);
-    }
-  };
-
-  // Tutup menu template saat pengguna mengklik di luar area menu.
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (templateMenuRef.current && !templateMenuRef.current.contains(event.target)) {
-        setTemplateMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Setiap prodi punya model aktifnya sendiri, dan susunan kolom template
-  // mengikuti model itu. Karena itu prodi template dipilih eksplisit di sini,
-  // bukan diambil diam-diam dari dropdown filter di bawah. Angkatan & semester
-  // tetap ikut pilihan form supaya isi contohnya nyambung.
-  const handleDownloadTemplate = async (prodiTarget) => {
-    setError("");
-    setTemplateMenuOpen(false);
-    try {
-      const params = new URLSearchParams();
-      params.set("prodi", prodiTarget);
-      if (angkatan) params.set("angkatan", angkatan);
-      if (semester) params.set("semester", semester);
-      const response = await axios.get(
-        `/api/template/predict?${params.toString()}`,
-        { responseType: "blob" },
-      );
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `template_prediksi_${prodiTarget.toLowerCase().replace(/\s+/g, "_")}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      // Backend membalas JSON error walau responseType blob, jadi perlu dibaca ulang
-      let message = `Gagal mengunduh template Excel untuk prodi ${prodiTarget}.`;
-      try {
-        const text = await err.response?.data?.text?.();
-        if (text) message = JSON.parse(text).error || message;
-      } catch {
-        // biarkan pesan bawaan
-      }
-      setError(message);
-    }
-  };
-
-  // Fungsi menjalankan prediksi menggunakan model pilihan aktif Admin
-  const handlePredict = async () => {
-    if (!file) {
-      setError("Silakan pilih berkas Excel data mahasiswa terlebih dahulu.");
-      return;
-    }
-    if (!prodi) {
-      setError("Silakan pilih Program Studi terlebih dahulu sebelum menjalankan prediksi.");
-      return;
-    }
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("prodi", prodi);
-    formData.append("angkatan", angkatan);
-    formData.append("semester", semester);
-    await runWithProgress(() => axios.post("/api/predict", formData), setError);
   };
 
   return (
@@ -190,250 +66,17 @@ const Upload = () => {
         <Header
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           title="Unggah Data"
-          subtitle="Jalankan prediksi sisip program dari berkas rekap nilai mahasiswa."
+          subtitle="Jalankan prediksi sisip program dari berkas di Berkas Mahasiswa."
         />
 
         <main className="p-6 space-y-6 max-w-[96rem] w-full mx-auto">
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Cara prediksi">
-            {[
-              ["otomatis", "Dari Berkas Mahasiswa (tanpa template)"],
-              ["template", "Unggah Berkas Template"],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                role="tab"
-                aria-selected={mode === value}
-                onClick={() => setMode(value)}
-                className={`px-4 py-2.5 rounded-xl border text-sm font-semibold transition ${mode === value ? "border-primary bg-primary text-white shadow-sm" : "border-border bg-surface text-gray-600 hover:border-primary hover:text-primary"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {mode === "otomatis" ? (
-            <AutoPredictCard
-              prodi={prodi}
-              setProdi={setProdi}
-              prodiList={prodiList}
-              lockedProdi={lockedProdi}
-              runWithProgress={runWithProgress}
-            />
-          ) : (
-          <>
-          <div className="bg-surface p-6 rounded-2xl shadow-sm border border-border">
-            <h2 className="text-xl font-bold flex items-center gap-2 mb-2">
-              <UploadCloud className="text-primary" /> Unggah Berkas Rekap Nilai
-            </h2>
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-              <p className="text-sm text-gray-500 max-w-2xl">
-                Tentukan Program Studi, Angkatan, dan Semester, lalu unggah
-                berkas rekap nilai mahasiswa. Pastikan kolom
-                Prodi/Angkatan/Semester di dalam berkas sama dengan pilihan Anda
-                di bawah ini.
-              </p>
-              <div className="relative shrink-0" ref={templateMenuRef}>
-                <Button
-                  variant="outline"
-                  onClick={() => setTemplateMenuOpen((open) => !open)}
-                  aria-haspopup="menu"
-                  aria-expanded={templateMenuOpen}
-                >
-                  <Download size={16} /> Unduh Template Excel
-                  <ChevronDown size={16} />
-                </Button>
-
-                {templateMenuOpen && (
-                  <div
-                    role="menu"
-                    className="absolute right-0 mt-2 w-64 bg-surface border border-border rounded-xl shadow-lg py-1 z-20"
-                  >
-                    <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 border-b border-border">
-                      Pilih Program Studi
-                    </p>
-                    {prodiList.map((p) => (
-                      <button
-                        key={p}
-                        role="menuitem"
-                        onClick={() => handleDownloadTemplate(p)}
-                        className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left text-secondary hover:bg-gray-50 transition-colors"
-                      >
-                        {p}
-                        {prodi === p && <Check size={16} className="text-primary" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Sektor Filter Dropdown Sesuai Aturan Main Bawaan */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Program Studi
-                </label>
-                {lockedProdi ? (
-                  <div className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-secondary font-medium">
-                    {lockedProdi}
-                    <span className="block text-xs text-gray-400 font-normal mt-0.5">
-                      Sesuai program studi akun Anda
-                    </span>
-                  </div>
-                ) : (
-                  <select
-                    value={prodi}
-                    onChange={(e) => setProdi(e.target.value)}
-                    className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                  >
-                    <option value="">-- Semua Program Studi --</option>
-                    {prodiList.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tahun Angkatan
-                </label>
-                <select
-                  value={angkatan}
-                  onChange={(e) => setAngkatan(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                >
-                  <option value="">-- Semua Angkatan --</option>
-                  <option value="2020">2020</option>
-                  <option value="2021">2021</option>
-                  <option value="2022">2022</option>
-                  <option value="2023">2023</option>
-                  <option value="2024">2024</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Semester
-                </label>
-                <select
-                  value={semester}
-                  onChange={(e) => setSemester(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                >
-                  <option value="">-- Pilih Semester --</option>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                    <option key={sem} value={sem}>Semester {sem}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Sektor Seret Kotak File */}
-            <div className="flex flex-col items-center justify-center">
-              <label className="w-full flex flex-col items-center px-4 py-8 bg-background rounded-2xl border-2 border-dashed border-gray-300 cursor-pointer hover:border-primary transition text-center mb-4">
-                <FileSpreadsheet className="h-10 w-10 text-gray-400 mb-3" />
-                <span className="text-sm font-semibold text-gray-600">
-                  {file
-                    ? file.name
-                    : "Seret atau Pilih Berkas Excel Rekap Nilai (.xlsx)"}
-                </span>
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </label>
-
-              {file && (
-                <Button
-                  onClick={handlePredict}
-                  disabled={loading}
-                  size="lg"
-                  className="w-full md:w-auto"
-                >
-                  {loading ? (
-                    <Loader2 className="animate-spin" size={18} />
-                  ) : (
-                    <BarChart2 size={18} />
-                  )}
-                  Jalankan Prediksi
-                </Button>
-              )}
-            </div>
-
-            {error && (
-              <p className="text-red-500 text-sm mt-4 flex items-center gap-2 font-medium bg-red-50 p-3 rounded-xl border border-red-100">
-                <AlertTriangle size={16} />
-                {error}
-              </p>
-            )}
-          </div>
-
-          {/* Sektor Pratinjau Tabel Data Excel */}
-          {previewData && (
-            <div className="bg-surface p-6 rounded-2xl shadow-sm border border-border">
-              <h3 className="text-md font-bold text-secondary mb-1">
-                Pratinjau Lembar Kerja Spreadsheet
-              </h3>
-              <p className="text-xs text-gray-500 mb-4">
-                Menampilkan 10 baris teratas dari total{" "}
-                <strong>{previewData.total_rows}</strong> rekaman mahasiswa yang
-                terdeteksi.
-              </p>
-
-              <div className="overflow-x-auto border border-border rounded-xl">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-border text-gray-500 font-semibold uppercase tracking-wider">
-                      <th scope="col" className="p-3 whitespace-nowrap">NIM</th>
-                      <th scope="col" className="p-3 whitespace-nowrap">Nama Mahasiswa</th>
-                      <th scope="col" className="p-3 whitespace-nowrap">IPK {semester ? `Semester ${semester}` : ''}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border text-gray-600">
-                    {previewData.data.map((row, rowIdx) => {
-                      const nim = row['NIM'] || row['nim'] || row['Nomor PMB'] || '-';
-                      const nama = row['Nama'] || row['Nama Mahasiswa'] || row['nama'] || '(Anonim/Data Tidak Memiliki Nama)';
-                      
-                      // Mencari kolom IPK yang sesuai dengan semester yang dipilih secara fleksibel
-                      let ipk = '-';
-                      if (semester) {
-                        const targetSem = String(semester);
-                        const ipkKey = Object.keys(row).find(k => 
-                          k.toLowerCase().replace(/\s+/g, '') === `ipk${targetSem}`
-                        );
-                        if (ipkKey && row[ipkKey] !== undefined && row[ipkKey] !== null) {
-                          ipk = row[ipkKey];
-                        }
-                      } else {
-                         // Fallback jika tidak ada semester yg dipilih (cari IPK berapapun)
-                         const ipkKey = Object.keys(row).find(k => k.toLowerCase().includes('ipk'));
-                         if (ipkKey && row[ipkKey] !== undefined && row[ipkKey] !== null) ipk = row[ipkKey];
-                      }
-
-                      return (
-                      <tr key={rowIdx} className="hover:bg-gray-50/50">
-                        <td className="p-3 whitespace-nowrap font-medium text-secondary">{nim}</td>
-                        <td className="p-3 whitespace-nowrap">{nama}</td>
-                        <td className="p-3 whitespace-nowrap">
-                          <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
-                            {ipk !== null && ipk !== '-' ? Number(ipk).toFixed(2) : '-'}
-                          </span>
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-          </>
-          )}
+          <AutoPredictCard
+            prodi={prodi}
+            setProdi={setProdi}
+            prodiList={prodiList}
+            lockedProdi={lockedProdi}
+            runWithProgress={runWithProgress}
+          />
         </main>
       </div>
 

@@ -21,7 +21,3 @@ def norm_str(v):
         return str(int(f)) if f.is_integer() else str(f)
     except (TypeError, ValueError):
         return s
-
-
-def match_series(series, value):
-    return series.astype(str).map(norm_str) == norm_str(value)

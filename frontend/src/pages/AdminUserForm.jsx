@@ -106,10 +106,9 @@ const AdminUserForm = () => {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">NIP (Nomor Induk Pegawai)</label>
                 <input
                   type="text"
-                  inputMode="numeric"
                   required
-                  pattern="[0-9 .\-]{5,30}"
-                  title="NIP hanya berisi angka (spasi/titik/strip boleh, akan dibuang)"
+                  pattern="[A-Za-z0-9 .\-]{5,30}"
+                  title="NIP berisi huruf dan angka (spasi/titik/strip boleh, akan dibuang)"
                   value={formData.nip}
                   onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
                   className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition font-mono"

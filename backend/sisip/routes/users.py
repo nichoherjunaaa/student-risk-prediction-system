@@ -22,7 +22,7 @@ def _validate_user_payload(data, is_new):
     if not nip or not name or (is_new and not password):
         return None, 'NIP, nama, dan password wajib diisi'
     if not NIP_RE.match(nip):
-        return None, 'NIP hanya boleh berisi angka (5-20 digit)'
+        return None, 'NIP hanya boleh berisi huruf dan angka (5-20 karakter)'
     if role not in ROLES:
         return None, 'Peran pengguna tidak dikenal'
 
