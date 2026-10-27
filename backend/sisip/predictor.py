@@ -23,7 +23,7 @@ from tensorflow import keras
 from .constants import NON_MATKUL_COLS, is_risk_label
 from .db import connect
 from .ml import missing_artifacts, model_base_path
-from .preprocessing import MISSING_CATEGORICAL
+from .preprocessing import MISSING_CATEGORICAL, MISSING_GRADE
 
 
 class PredictError(Exception):
@@ -54,13 +54,23 @@ class ActiveModel:
         self.feature_cols = [str(c) for c in getattr(self.scaler, 'feature_names_in_', [])]
         if self.max_semester is None:
             self.max_semester = self.config.get('max_semester')
+        # Isi nilai mata kuliah kosong sesuai data latih model ini. Model lama
+        # (sebelum konvensi 'E') tidak mencatatnya dan dilatih dengan '-'.
+        self.grade_cols = set(self.config.get('grade_cols', []))
+        self.missing_grade = self.config.get('missing_grade', MISSING_CATEGORICAL)
+
+    def missing_value(self, col):
+        if col in self.grade_cols:
+            return self.missing_grade
+        return MISSING_CATEGORICAL if col in self.encoders else 0
 
 
 def active_model_row(prodi):
     conn = connect()
     try:
         return conn.execute(
-            "SELECT id, version_name, prodi, trained_at, max_semester, file_path FROM model_registry "
+            "SELECT id, version_name, prodi, trained_at, max_semester, file_path, max_semester_source "
+            "FROM model_registry "
             "WHERE is_active = 1 AND prodi = ? LIMIT 1", (prodi,)).fetchone()
     finally:
         conn.close()
@@ -78,21 +88,24 @@ def load_active_model(prodi, with_network=True):
     if missing_artifacts(base_path):
         raise PredictError(f"Berkas AI untuk prodi {prodi} tidak lengkap di server.", 500)
     try:
-        return ActiveModel(row[:5], base_path, with_network)
+        am = ActiveModel(row[:5], base_path, with_network)
     except Exception as load_err:
         raise PredictError(f"Gagal memuat arsitektur model aktif prodi {prodi}: {load_err}", 500)
+    # 'training' = tercatat saat dilatih, 'perkiraan' = ditebak dari data untuk model lama.
+    am.max_semester_source = row[6] or 'training'
+    return am
 
 
 def align_features(df, am):
     """Samakan kolom dengan fitur model untuk tabel hasil preprocessing.
 
     Fitur yang tidak ada di tabel (mis. mata kuliah yang tak diambil satu pun
-    mahasiswa angkatan ini) diisi seperti saat tabel latih dibentuk: '-' untuk
-    kolom kategori, 0 untuk angka. Kembalikan (tabel, daftar_fitur_hilang)."""
+    mahasiswa angkatan ini) diisi seperti saat tabel latih dibentuk (lihat
+    ActiveModel.missing_value). Kembalikan (tabel, daftar_fitur_hilang)."""
     missing = [c for c in am.feature_cols if c not in df.columns]
     out = df.reindex(columns=am.feature_cols)
     for col in missing:
-        out[col] = MISSING_CATEGORICAL if col in am.encoders else 0
+        out[col] = am.missing_value(col)
     return out, missing
 
 
@@ -114,6 +127,7 @@ def run_model(features, am):
     # Kategori yang tidak dikenal model diganti ke kelas pertama (le.classes_[0]).
     for col, le in am.encoders.items():
         if col in df.columns:
+            df[col] = df[col].where(df[col].notna(), am.missing_value(col))
             known = set(str(x) for x in le.classes_)
             as_str = df[col].astype(str)
             df[col] = le.transform(as_str.map(lambda s: s if s in known else str(le.classes_[0])))

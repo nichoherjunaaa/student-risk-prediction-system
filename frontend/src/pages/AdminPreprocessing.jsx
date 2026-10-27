@@ -354,6 +354,14 @@ const AdminPreprocessing = () => {
                     {k}: {v}
                   </span>
                 ))}
+                {laporan.berhenti_dilabeli_sisip > 0 && (
+                  <span
+                    className="px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 font-semibold"
+                    title="Mahasiswa tanpa label yang datanya berhenti sebelum batas semester, dilabeli SISIP seperti data latih skrip acuan"
+                  >
+                    Berhenti → SISIP: {laporan.berhenti_dilabeli_sisip}
+                  </span>
+                )}
                 {laporan.angkatan.length > 0 && (
                   <span className="px-3 py-1.5 rounded-full bg-gray-100 border border-border font-semibold">
                     Angkatan: {laporan.angkatan.join(", ")}

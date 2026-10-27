@@ -48,6 +48,16 @@ AK_NIM, AK_MATKUL, AK_NILAI, AK_SEMESTER, AK_ANGKATAN = 'NIM', 'Nama Mtk', 'Nila
 AK_IPK, AK_SKS, AK_LABEL = 'IPK Per Semester', 'SKS Lulus Per Semester', 'Sisip Program'
 
 MISSING_CATEGORICAL = '-'
+# Mata kuliah yang tidak punya nilai sampai batas semester diisi 'E', sama
+# dengan sheet TRAIN_SEM3 milik cnn_tabular_2d_v2.py (tidak ada '-' sama sekali
+# di sana). Dengan begitu mahasiswa yang berhenti terlihat "gagal", bukan
+# "belum mengambil". Kolom non-nilai (biodata) tetap memakai MISSING_CATEGORICAL.
+MISSING_GRADE = 'E'
+# TRAIN_SEM3 hanya memuat rapor tiga mapel yang dimiliki semua pendaftar,
+# walaupun sheet sumbernya berisi lebih banyak mapel. Batasan ini hanya untuk
+# tabel latih; tabel prediksi memuat semua mapel supaya model lama yang dilatih
+# dengan mapel lain tetap mendapat kolomnya.
+RAPOR_MAPEL = ('Matematika', 'Bahasa Inggris', 'Bahasa Indonesia')
 MAX_SEMESTER_LIMIT = 8
 
 
@@ -301,7 +311,7 @@ def _tes_table(tes, fmt):
     return out.groupby(PMB_KEY, as_index=False).mean(numeric_only=True)
 
 
-def _rapor_table(rapor, fmt):
+def _rapor_table(rapor, fmt, mapel=None):
     """Ubah nilai rapor dari format panjang menjadi kolom `<Mapel>_<akhiran>`."""
     if rapor is None:
         return None
@@ -312,6 +322,8 @@ def _rapor_table(rapor, fmt):
     long = rapor[[PMB_KEY, MAPEL_COL] + value_cols].melt(
         id_vars=[PMB_KEY, MAPEL_COL], var_name='_semester', value_name='_nilai')
     long[PMB_KEY] = _clean_key(long[PMB_KEY])
+    if mapel is not None:
+        long = long[long[MAPEL_COL].astype(str).str.strip().isin(mapel)]
     long['_kolom'] = (long[MAPEL_COL].astype(str).str.strip() + '_'
                       + long['_semester'].map(fmt.rapor_value_cols))
     long['_nilai'] = _to_num(long['_nilai'])
@@ -404,7 +416,7 @@ def _check_semester(max_semester):
     return max_semester
 
 
-def _merged_table(pmb_file, akademik_file, prodi, max_semester, fmt):
+def _merged_table(pmb_file, akademik_file, prodi, max_semester, fmt, rapor_mapel=None):
     """Gabungan PMB + akademik satu baris per mahasiswa, sebelum urusan label.
     Dipakai bersama oleh mode latih (TRAIN_SEM*) dan mode prediksi (TEST_SEM*)
     supaya kedua tabel dibentuk dengan cara yang persis sama."""
@@ -421,17 +433,18 @@ def _merged_table(pmb_file, akademik_file, prodi, max_semester, fmt):
     biodata = _biodata_table(biodata, fmt)
 
     rekap, matriks, terakhir = _akademik_tables(akademik, max_semester, set(biodata['NIM']), fmt)
-    jumlah_matkul = len(matriks.columns) - 1
+    matkul_cols = [c for c in matriks.columns if c != 'NIM']
+    jumlah_matkul = len(matkul_cols)
 
     df = rekap.merge(matriks, on='NIM', how='left').merge(biodata, on='NIM', how='inner')
-    for tabel in (_tes_table(tes, fmt), _rapor_table(rapor, fmt)):
+    for tabel in (_tes_table(tes, fmt), _rapor_table(rapor, fmt, rapor_mapel)):
         if tabel is not None:
             df = df.merge(tabel, on=PMB_KEY, how='left')
 
     df = df.rename(columns={PMB_KEY: 'Nomor PMB'})
     df['Prodi'] = prodi_label
     sumber = {'PMB': sorted(sheet_pmb.keys()), 'akademik': sorted(sheet_akademik.keys())}
-    return df, prodi_label, jumlah_matkul, terakhir, sumber
+    return df, prodi_label, matkul_cols, terakhir, sumber
 
 
 def _split_columns(df):
@@ -447,14 +460,21 @@ def build_training_table(pmb_file, akademik_file, prodi=None, max_semester=3, fm
     itu dipakai format bawaan."""
     fmt = fmt or DataFormat(default_format())
     max_semester = _check_semester(max_semester)
-    df, prodi_label, jumlah_matkul, _, sumber = _merged_table(
-        pmb_file, akademik_file, prodi, max_semester, fmt)
+    df, prodi_label, matkul_cols, terakhir, sumber = _merged_table(
+        pmb_file, akademik_file, prodi, max_semester, fmt, RAPOR_MAPEL)
 
     if LABEL_COL not in df.columns:
         raise PreprocessError(
             f"Berkas akademik tidak memuat kolom '{fmt.ak['kolom_label']}' sebagai target, "
             "sehingga data latih tidak bisa dibentuk."
         )
+    # Mahasiswa yang berhenti sebelum batas semester tidak pernah diberi label di
+    # berkas akademik. TRAIN_SEM3 milik cnn_tabular_2d_v2.py justru memuatnya
+    # sebagai SISIP (mis. 22 mahasiswa ber-IPK 0); tanpa contoh ini model tidak
+    # mengenal pola mahasiswa berhenti dan menebaknya TIDAK SISIP.
+    smt = df['NIM'].map(terakhir)
+    berhenti = df[LABEL_COL].isna() & (smt < max_semester)
+    df.loc[berhenti, LABEL_COL] = LABEL_RISIKO
     tanpa_label = int(df[LABEL_COL].isna().sum())
     df = df[df[LABEL_COL].notna()]
     if df.empty:
@@ -463,7 +483,7 @@ def build_training_table(pmb_file, akademik_file, prodi=None, max_semester=3, fm
             "baris berlabel yang bisa dilatih."
         )
 
-    df = _fill_missing(df)
+    df = _fill_missing(df, matkul_cols, MISSING_GRADE)
     laporan_cols, kandidat = _split_columns(df)
     # Kolom yang isinya seragam (mis. mata kuliah yang tak seorang pun ambil)
     # tidak membawa informasi apa pun dan hanya memperbesar grid masukan CNN.
@@ -479,9 +499,10 @@ def build_training_table(pmb_file, akademik_file, prodi=None, max_semester=3, fm
             'mahasiswa': len(df),
             'kolom': len(df.columns),
             'jumlah_fitur': len(feature_cols),
-            'jumlah_matkul': jumlah_matkul,
+            'jumlah_matkul': len(matkul_cols),
             'kolom_seragam_dibuang': len(kandidat) - len(feature_cols),
             'tanpa_label': tanpa_label,
+            'berhenti_dilabeli_sisip': int(berhenti.sum()),
             'distribusi_label': {str(k): int(v) for k, v in
                                  df[LABEL_COL].value_counts().items()},
             'angkatan': sorted(str(a) for a in df['Angkatan'].dropna().unique()),
@@ -509,7 +530,7 @@ def build_prediction_table(pmb_file, akademik_file, prodi, max_semester, angkata
     batas semester data latih model."""
     fmt = fmt or DataFormat(default_format())
     max_semester = _check_semester(max_semester)
-    df, prodi_label, _, terakhir, sumber = _merged_table(
+    df, prodi_label, matkul_cols, terakhir, sumber = _merged_table(
         pmb_file, akademik_file, prodi, max_semester, fmt)
 
     tersedia = sorted({_norm_angkatan(a) for a in df['Angkatan'].dropna().unique()})
@@ -522,7 +543,10 @@ def build_prediction_table(pmb_file, akademik_file, prodi, max_semester, angkata
             )
 
     df = df.drop(columns=[LABEL_COL], errors='ignore')
-    df = _fill_missing(df)
+    # Nilai mata kuliah yang kosong dibiarkan NaN: predictor mengisinya sesuai
+    # konvensi model ('E' untuk model baru, '-' untuk model lama), dan detail
+    # mahasiswa tidak salah menghitungnya sebagai mata kuliah tidak lulus.
+    df = _fill_missing(df, matkul_cols, None)
     laporan_cols, kandidat = _split_columns(df)
     df = df[IDENTITY_COLS + kandidat + laporan_cols].reset_index(drop=True)
 
@@ -546,12 +570,17 @@ def build_prediction_table(pmb_file, akademik_file, prodi, max_semester, angkata
     )
 
 
-def _fill_missing(df):
-    """Kolom huruf mutu/kategori diisi '-' (tidak diambil), kolom angka diisi 0 —
-    sama seperti berkas latih lama supaya distribusi fiturnya sebanding."""
+def _fill_missing(df, matkul_cols=(), grade_fill=MISSING_GRADE):
+    """Kolom nilai mata kuliah diisi `grade_fill` (None = biarkan kosong), kolom
+    kategori lain diisi '-', kolom angka diisi 0."""
     out = df.copy()
+    matkul_cols = set(matkul_cols)
     for col in out.columns:
         if col == LABEL_COL:
+            continue
+        if col in matkul_cols:
+            if grade_fill is not None:
+                out[col] = out[col].astype(object).where(out[col].notna(), grade_fill)
             continue
         if pd.api.types.is_numeric_dtype(out[col]):
             out[col] = out[col].fillna(0)

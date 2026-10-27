@@ -39,6 +39,14 @@ os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 os.chdir(HERE)
 import app as A  # noqa: E402
 from sisip.auth import token_serializer  # noqa: E402
+from sisip.passwords import hash_pw  # noqa: E402
+
+# DB sementara disalin dari DB asli, yang admin utamanya sudah punya password
+# sendiri (SISIP_ADMIN_PASSWORD hanya dipakai saat tabel users kosong). Samakan
+# di salinan ini saja supaya password asli tidak perlu ditulis di kode.
+with sqlite3.connect(_tmp_db) as _conn:
+    _conn.execute('UPDATE users SET password = ? WHERE nip = ? AND deleted_at IS NULL',
+                  (hash_pw(ADMIN_PW), os.environ['SISIP_ADMIN_NIP']))
 from sisip.utils import norm_str  # noqa: E402
 
 client = A.app.test_client()
@@ -563,6 +571,11 @@ def run():
     test_df = build_prediction_table(io.BytesIO(pmb_bytes), io.BytesIO(akd_bytes), prodi=prodi,
                                      max_semester=3, angkatan='2023').df
     X_test = test_df.reindex(columns=list(scaler.feature_names_in_))
+    # Tabel prediksi membiarkan nilai mata kuliah kosong; isi seperti data latih model.
+    grade_cols = set(cfg.get('grade_cols', []))
+    for col in encoders:
+        fill = cfg.get('missing_grade', '-') if col in grade_cols else '-'
+        X_test[col] = X_test[col].where(X_test[col].notna(), fill)
     for col, le in encoders.items():
         X_test[col] = X_test[col].astype(str).map(lambda s: s if s in le.classes_ else le.classes_[0])
         X_test[col] = le.transform(X_test[col])

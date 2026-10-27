@@ -19,6 +19,8 @@ from ..config import MODEL_DIR
 from ..constants import LABEL_COL, TRAIN_SHEET, TRAIN_SHEET_PREFIX, is_risk_label, non_feature_columns
 from ..db import connect
 from ..ml import build_cnn_model, find_grid_dimensions, missing_artifacts, model_base_path
+from ..preprocessing import MISSING_CATEGORICAL, MISSING_GRADE
+from ..settings_store import current_format
 from ..utils import norm_str
 
 bp = Blueprint('training', __name__)
@@ -119,6 +121,15 @@ def train_model():
 
     X = X.fillna(0)
 
+    # Kolom nilai mata kuliah dan cara data latih mengisi nilai kosongnya ('E'
+    # untuk hasil Preprocessing sekarang, '-' untuk berkas latih lama), supaya
+    # prediksi mengisi nilai kosong dengan cara yang sama.
+    fmt = current_format()
+    grades = fmt.grade_pass | fmt.grade_fail | {MISSING_CATEGORICAL}
+    grade_cols = [c for c, le in encoders.items() if set(map(str, le.classes_)) <= grades]
+    missing_grade = (MISSING_CATEGORICAL if any(MISSING_CATEGORICAL in encoders[c].classes_ for c in grade_cols)
+                     else MISSING_GRADE)
+
     le_y = LabelEncoder()
     y_encoded = le_y.fit_transform(y)
     n_classes = len(np.unique(y_encoded))
@@ -154,6 +165,8 @@ def train_model():
         'n_classes': n_classes,
         'n_features': n_features,
         'max_semester': max_semester,
+        'grade_cols': grade_cols,
+        'missing_grade': missing_grade,
     }
 
     model = build_cnn_model((height, width, 1), n_classes, dropout_rate=dropout_rate_val)

@@ -373,7 +373,7 @@ def _model_semester(am, files, prodi, fmt):
     semester berikutnya belum menjadi fitur, jadi semester lebih besar tidak
     menambah kecocokan)."""
     if am.max_semester:
-        return int(am.max_semester), 'training'
+        return int(am.max_semester), getattr(am, 'max_semester_source', None) or 'training'
     best, best_cov = None, -1.0
     for smt in range(1, MAX_SEMESTER_LIMIT + 1):
         try:
