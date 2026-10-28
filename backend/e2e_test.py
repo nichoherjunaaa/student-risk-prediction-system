@@ -272,6 +272,21 @@ def run():
     r = client.post(f'/api/models/{ghost_id}/activate', headers=auth(admin_tok))
     check('aktivasi model tanpa berkas -> 400', r.status_code == 400, r.status_code)
 
+    print("\n=== 8b. Registri model per halaman ===")
+    semua = client.get('/api/models', headers=auth(admin_tok)).get_json()
+    check('tanpa ?page tetap array semua model', isinstance(semua, list) and len(semua) >= 1, type(semua))
+    pg = client.get('/api/models?page=1&per_page=1', headers=auth(admin_tok)).get_json()
+    check('?page=1&per_page=1 -> 1 item + total',
+          len(pg['items']) == 1 and pg['total'] == len(semua) and pg['total_pages'] == len(semua), pg)
+    check('halaman 1 = model terbaru', pg['items'][0]['id'] == semua[0]['id'])
+    check('respons memuat kolom angkatan', 'angkatan' in pg['items'][0])
+    pg = client.get('/api/models?page=999&per_page=1', headers=auth(admin_tok)).get_json()
+    check('page melebihi batas -> halaman terakhir', pg['page'] == pg['total_pages'] and len(pg['items']) == 1, pg)
+    pg = client.get('/api/models?page=abc&per_page=-5', headers=auth(admin_tok)).get_json()
+    check('page/per_page tidak valid -> bawaan (1, 10)', pg['page'] == 1 and pg['per_page'] == 10, pg)
+    pg = client.get('/api/models?page=1&per_page=5000', headers=auth(admin_tok)).get_json()
+    check('per_page dibatasi 100', pg['per_page'] == 100, pg['per_page'])
+
 
     print("\n=== 9. Manajemen pengguna berbasis NIP ===")
     def new_user(**kw):
@@ -584,6 +599,17 @@ def run():
     smt = conn.execute("SELECT max_semester, max_semester_source FROM model_registry ORDER BY id DESC LIMIT 1").fetchone()
     conn.close()
     check('model baru mencatat batas semester data latih (3)', smt == (3, 'training'), smt)
+
+    df_latih = pd.read_excel(io.BytesIO(latih), sheet_name='TRAIN_SEM3')
+    semua_angkatan = sorted({norm_str(a) for a in df_latih['Angkatan'].dropna()})
+    model_baru = client.get('/api/models?page=1', headers=auth(admin_tok)).get_json()['items'][0]
+    check('tanpa filter: angkatan model = semua angkatan di berkas',
+          model_baru['angkatan'] == ', '.join(semua_angkatan), (model_baru['angkatan'], semua_angkatan))
+    r = client.post('/api/train', headers=auth(admin_tok), content_type='multipart/form-data', data={
+        'file': (io.BytesIO(latih), 'data_latih.xlsx'), 'prodi': prodi, 'epochs': '2',
+        'angkatan': f' {semua_angkatan[0]}.0 , 1999'})
+    check('dengan filter: angkatan dicatat dari data yang tersisa (bukan isian form)',
+          r.status_code == 200 and r.get_json()['metrics']['angkatan'] == semua_angkatan[0], r.get_json())
 
     r = client.post('/api/predict/berkas', headers=auth(admin_tok), json={'prodi': 'Matematika', 'angkatan': '2023'})
     check('model yang fiturnya tidak cocok ditolak, bukan diprediksi diam-diam',

@@ -110,7 +110,15 @@ def train_model():
 
         if len(df) == 0:
             return jsonify({'error': f"Tidak ada data latih (TRAIN) untuk Prodi {prodi}."}), 400
-            
+
+        # Yang dicatat angkatan yang tersisa setelah filter, bukan isian form:
+        # form kosong berarti semua angkatan di berkas ikut dilatih.
+        trained_angkatan = None
+        if 'Angkatan' in df.columns:
+            daftar_angkatan = {norm_str(a) for a in df['Angkatan'].dropna() if str(a).strip()}
+            if daftar_angkatan:
+                trained_angkatan = ', '.join(sorted(daftar_angkatan))
+
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
@@ -250,11 +258,13 @@ def train_model():
         c.execute('''
             INSERT INTO model_registry (version_name, prodi, file_path, accuracy, loss, trained_at, is_active,
                                         max_semester, max_semester_source,
-                                        recall_sisip, val_sisip_caught, val_sisip_total, n_train_samples)
-            VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+                                        recall_sisip, val_sisip_caught, val_sisip_total, n_train_samples,
+                                        angkatan)
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
         ''', (version_name, prodi if prodi else 'Global', saved_model_path, accuracy_score, loss_score, now_str,
               max_semester, 'training' if max_semester else None,
-              recall_sisip, val_sisip_caught, val_sisip_total, n_train_samples))
+              recall_sisip, val_sisip_caught, val_sisip_total, n_train_samples,
+              trained_angkatan))
         conn.commit()
         conn.close()
 
@@ -268,6 +278,7 @@ def train_model():
                 'val_sisip_caught': val_sisip_caught,
                 'val_sisip_total': val_sisip_total,
                 'n_train_samples': n_train_samples,
+                'angkatan': trained_angkatan,
             }
         }), 200
 
@@ -275,43 +286,72 @@ def train_model():
         print(f"Gagal mencatat log riwayat admin: {admin_err}")
         return jsonify({'message': 'Model trained successfully'}), 200
 
+def _model_row(row):
+    return {
+        "id": row["id"],
+        "version_name": row["version_name"],
+        "prodi": row["prodi"],
+        "file_path": row["file_path"],
+        "accuracy": row["accuracy"],
+        "loss": row["loss"],
+        "trained_at": row["trained_at"],
+        "is_active": bool(row["is_active"]),
+        "max_semester": row["max_semester"],
+        "max_semester_source": row["max_semester_source"],
+        "recall_sisip": row["recall_sisip"],
+        "val_sisip_caught": row["val_sisip_caught"],
+        "val_sisip_total": row["val_sisip_total"],
+        "n_train_samples": row["n_train_samples"],
+        "angkatan": row["angkatan"],
+    }
+
+
+def _positive_int(value, default):
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    return n if n > 0 else default
+
+
 @bp.route('/api/models', methods=['GET'])
 @require_role('admin')
 def get_all_models():
+    """Tanpa ?page: array semua model (format lama, dipakai e2e). Dengan ?page:
+    satu halaman berisi per_page model (bawaan 10, maks 100) beserta totalnya."""
     try:
         conn = connect()
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
+        order = "ORDER BY trained_at DESC, id DESC"
 
-        c.execute("SELECT * FROM model_registry ORDER BY trained_at DESC")
-        rows = c.fetchall()
-        
-        models = []
-        for row in rows:
-            models.append({
-                "id": row["id"],
-                "version_name": row["version_name"],
-                "prodi": row["prodi"],
-                "file_path": row["file_path"],
-                "accuracy": row["accuracy"],
-                "loss": row["loss"],
-                "trained_at": row["trained_at"],
-                "is_active": bool(row["is_active"]),
-                "max_semester": row["max_semester"],
-                "max_semester_source": row["max_semester_source"],
-                "recall_sisip": row["recall_sisip"],
-                "val_sisip_caught": row["val_sisip_caught"],
-                "val_sisip_total": row["val_sisip_total"],
-                "n_train_samples": row["n_train_samples"],
-            })
-            
+        if 'page' not in request.args:
+            c.execute(f"SELECT * FROM model_registry {order}")
+            models = [_model_row(r) for r in c.fetchall()]
+            conn.close()
+            return jsonify(models), 200
+
+        per_page = min(_positive_int(request.args.get('per_page'), 10), 100)
+        page = _positive_int(request.args.get('page'), 1)
+        c.execute("SELECT COUNT(*) FROM model_registry")
+        total = c.fetchone()[0]
+        total_pages = max(1, -(-total // per_page))
+        page = min(page, total_pages)
+        c.execute(f"SELECT * FROM model_registry {order} LIMIT ? OFFSET ?",
+                  (per_page, (page - 1) * per_page))
+        models = [_model_row(r) for r in c.fetchall()]
         conn.close()
-        return jsonify(models), 200
-        
+        return jsonify({
+            "items": models,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+        }), 200
+
     except Exception as e:
         print(f"Gagal memuat tabel admin: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
 
 @bp.route('/api/models/<int:model_id>/activate', methods=['POST'])
 @require_role('admin')

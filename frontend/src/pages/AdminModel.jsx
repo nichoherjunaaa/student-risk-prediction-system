@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Upload as UploadIcon,
   Database,
@@ -8,6 +8,8 @@ import {
   Loader2,
   BarChart2,
   Star,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
@@ -22,6 +24,9 @@ import axios from "axios";
 // Lihat docs/AUDIT-PIPELINE-PREDIKSI.md — requirement "parameter yang dipilih apa".
 // Ubah ke true untuk menampilkannya kembali.
 const SHOW_HYPERPARAMS = false;
+
+// Jumlah model per halaman di tabel Registri Model.
+const MODELS_PER_PAGE = 10;
 
 // Recall kelas SISIP = mahasiswa sisip yang tertangkap / seluruh mahasiswa sisip
 // di data validasi. Akurasi saja menipu karena sebagian besar mahasiswa tidak
@@ -77,17 +82,27 @@ const AdminModel = () => {
   // State Manajemen Registri Riwayat Model
   const [modelHistory, setModelHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalModels, setTotalModels] = useState(0);
   const [modelMetrics, setModelMetrics] = useState(null);
 
   useEffect(() => {
-    fetchModelHistory();
+    fetchModelHistory(1);
   }, []);
 
-  const fetchModelHistory = async () => {
+  // Server membatasi page ke halaman terakhir yang ada, jadi halaman yang
+  // dikembalikan dipakai apa adanya.
+  const fetchModelHistory = async (targetPage = page) => {
     setHistoryLoading(true);
     try {
-      const response = await axios.get("/api/models");
-      setModelHistory(response.data);
+      const response = await axios.get("/api/models", {
+        params: { page: targetPage, per_page: MODELS_PER_PAGE },
+      });
+      setModelHistory(response.data.items);
+      setPage(response.data.page);
+      setTotalPages(response.data.total_pages);
+      setTotalModels(response.data.total);
     } catch (err) {
       console.error("Gagal mengambil data registri model:", err);
     }
@@ -142,7 +157,7 @@ const AdminModel = () => {
         setModelMetrics({ ...response.data.metrics, prodi: response.data.prodi });
         setShowSuccessModal(true);
         setFile(null);
-        fetchModelHistory();
+        fetchModelHistory(1);
       }, 600);
     } catch (err) {
       clearInterval(progressInterval);
@@ -352,6 +367,7 @@ const AdminModel = () => {
                   <tr className="border-b border-border bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
                     <th scope="col" className="p-3">Nama Versi Model</th>
                     <th scope="col" className="p-3">Program Studi</th>
+                    <th scope="col" className="p-3">Tahun Angkatan</th>
                     <th scope="col" className="p-3">Waktu Dilatih</th>
                     <th scope="col" className="p-3">Akurasi</th>
                     <th scope="col" className="p-3">Recall SISIP</th>
@@ -362,13 +378,13 @@ const AdminModel = () => {
                 <tbody className="text-sm divide-y divide-border">
                   {historyLoading ? (
                     <tr>
-                      <td colSpan="7" className="p-4 text-center text-gray-500">
+                      <td colSpan="8" className="p-4 text-center text-gray-500">
                         Memuat registri model...
                       </td>
                     </tr>
                   ) : modelHistory.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="p-4 text-center text-gray-500">
+                      <td colSpan="8" className="p-4 text-center text-gray-500">
                         Belum ada model yang tersimpan. Latih model pertama Anda di
                         panel atas.
                       </td>
@@ -385,6 +401,18 @@ const AdminModel = () => {
                             : model.version_name
                                 .split("_")[2]
                                 ?.replace("-", " ")}
+                        </td>
+                        <td className="p-3 text-xs">
+                          {model.angkatan ? (
+                            model.angkatan
+                          ) : (
+                            <span
+                              className="text-gray-400"
+                              title="Model lama: angkatan belum dicatat. Latih ulang untuk melihatnya."
+                            >
+                              —
+                            </span>
+                          )}
                         </td>
                         <td className="p-3 text-gray-500 text-xs">
                           {model.trained_at}
@@ -420,6 +448,32 @@ const AdminModel = () => {
                 </tbody>
               </table>
             </div>
+
+            {totalModels > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 text-sm text-gray-500">
+                <span>
+                  Halaman {page} dari {totalPages} · {totalModels} model
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => fetchModelHistory(page - 1)}
+                    disabled={historyLoading || page <= 1}
+                  >
+                    <ChevronLeft size={14} /> Sebelumnya
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => fetchModelHistory(page + 1)}
+                    disabled={historyLoading || page >= totalPages}
+                  >
+                    Berikutnya <ChevronRight size={14} />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -496,7 +550,11 @@ const AdminModel = () => {
                     {modelMetrics.n_train_samples != null && (
                       <p className="text-xs text-gray-500 mt-1">
                         Dilatih dari {modelMetrics.n_train_samples} mahasiswa
-                        berlabel.
+                        berlabel
+                        {modelMetrics.angkatan
+                          ? ` angkatan ${modelMetrics.angkatan}`
+                          : ""}
+                        .
                       </p>
                     )}
                   </div>

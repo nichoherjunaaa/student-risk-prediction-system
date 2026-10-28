@@ -166,7 +166,9 @@ def init_db():
         'model_registry': [('max_semester', 'INTEGER'), ('max_semester_source', 'TEXT'),
                            # Recall kelas SISIP pada data validasi: tertangkap / total.
                            ('recall_sisip', 'REAL'), ('val_sisip_caught', 'INTEGER'),
-                           ('val_sisip_total', 'INTEGER'), ('n_train_samples', 'INTEGER')],
+                           ('val_sisip_total', 'INTEGER'), ('n_train_samples', 'INTEGER'),
+                           # Angkatan yang benar-benar ada di data latih, mis. '2020, 2021'.
+                           ('angkatan', 'TEXT')],
         'users': [('deleted_at', 'TEXT'), ('prodi', 'TEXT')],
     })
     _migrate_users_to_nip(c)
