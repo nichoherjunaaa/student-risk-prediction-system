@@ -34,6 +34,7 @@ os.environ['SISIP_SECRET_KEY'] = 'e2e-test-secret'
 os.environ['SISIP_FILES_DIR'] = os.path.join(_tmpdir, 'files')
 os.environ['SISIP_ADMIN_NIP'] = '235314122'
 os.environ['SISIP_ADMIN_PASSWORD'] = ADMIN_PW = 'e2e-admin-password'
+os.environ['SISIP_SIA_SSO_SECRET'] = SSO_SECRET = 'e2e-sso-secret'
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 
 os.chdir(HERE)
@@ -614,6 +615,59 @@ def run():
     r = client.post('/api/predict/berkas', headers=auth(admin_tok), json={'prodi': 'Matematika', 'angkatan': '2023'})
     check('model yang fiturnya tidak cocok ditolak, bukan diprediksi diam-diam',
           r.status_code == 400 and 'tidak cocok' in r.get_json()['error'], r.get_json())
+
+    print("\n=== 15. SSO dari SIA (/api/sso/sia) ===")
+    import secrets
+    import time
+    from sisip.routes.sso import sign
+    contoh = 'contoh-rahasia-JANGAN-dipakai-di-produksi'
+    n0 = '3f9c2a7e1b4d8c60a5e2f1d9b7c3a4e8'
+    check('vektor uji dokumen: NIP angka',
+          sign(contoh, '0012345678', 1790000000, n0) ==
+          '59f52c52a12c5077afb55f8037de09c49e58a225899d82bc95734e5dba628b9c')
+    check('vektor uji dokumen: NIP huruf',
+          sign(contoh, 'DSN12AB345', 1790000000, n0) ==
+          'd1a740c07d0c0bf7e81e7188467577089e40dd37eeb0e87a9cad92f6db0d8716')
+
+    def sso_link(sia_id, ts=None, nonce=None):
+        ts = int(time.time()) if ts is None else ts
+        nonce = nonce or secrets.token_hex(16)
+        return {'id': sia_id, 'ts': str(ts), 'nonce': nonce, 'sig': sign(SSO_SECRET, sia_id, ts, nonce)}
+
+    def sso(body):
+        return client.post('/api/sso/sia', json=body)
+
+    def audit_terakhir():
+        with sqlite3.connect(_tmp_db) as conn:
+            return conn.execute("SELECT result FROM sso_audit ORDER BY id DESC LIMIT 1").fetchone()[0]
+
+    link = sso_link(DPA_NIP)
+    r = sso(link)
+    body = r.get_json()
+    check('link valid -> 200 + token', r.status_code == 200 and body['user']['nip'] == DPA_NIP and body['token'], body)
+    check('token SSO bisa dipakai memanggil API',
+          client.get('/api/prodi', headers=auth(body['token'])).status_code == 200)
+    r = sso(link)
+    check('link dipakai ulang -> 401 replay', r.status_code == 401 and audit_terakhir() == 'replay', r.status_code)
+    rusak = dict(sso_link(DPA_NIP), sig='0' * 64)
+    check('sig diubah -> 401 bad_sig', sso(rusak).status_code == 401 and audit_terakhir() == 'bad_sig')
+    lain = sso_link(DPA_NIP)
+    lain['id'] = '900000000000000003'
+    check('NIP diganti tanpa sig baru -> 401', sso(lain).status_code == 401 and audit_terakhir() == 'bad_sig')
+    r = sso(sso_link(DPA_NIP, ts=int(time.time()) - 600))
+    check('link kedaluwarsa -> 401 expired', r.status_code == 401 and audit_terakhir() == 'expired')
+    r = sso(sso_link('77777777777'))
+    check('NIP tidak terdaftar -> 401 unknown_user', r.status_code == 401 and audit_terakhir() == 'unknown_user')
+    r = sso(sso_link(ADMIN_NIP))
+    check('akun admin -> 403 role_blocked', r.status_code == 403 and audit_terakhir() == 'role_blocked')
+    r = sso({'id': DPA_NIP, 'ts': 'abc', 'nonce': 'x', 'sig': 'y'})
+    check('format tidak valid -> 400', r.status_code == 400 and audit_terakhir() == 'bad_request')
+    check('pesan penolakan seragam',
+          sso(sso_link('77777777777')).get_json() == sso(rusak).get_json())
+    berpemisah = DPA_NIP[:8] + '-' + DPA_NIP[8:]
+    r = sso(sso_link(berpemisah))
+    check('NIP berpemisah dengan sig benar -> ketemu lewat norm_nip',
+          r.status_code == 200 and r.get_json()['user']['nip'] == DPA_NIP, r.get_json())
 
 
 try:

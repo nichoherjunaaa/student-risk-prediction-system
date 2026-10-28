@@ -18,6 +18,7 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminUserForm from "./pages/AdminUserForm";
 import DetailCourses from "./pages/DetailCourses";
 import BerkasMahasiswa from "./pages/BerkasMahasiswa";
+import SsoSia from "./pages/SsoSia";
 import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
 import SessionTimeout from "./components/SessionTimeout";
@@ -51,6 +52,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/sso/sia" element={<SsoSia />} />
 
         <Route path="/upload" element={<ProtectedRoute roles={PREDIKSI_ROLES}><Upload /></ProtectedRoute>} />
         <Route path="/results" element={<ProtectedRoute roles={PREDIKSI_ROLES}><Results /></ProtectedRoute>} />

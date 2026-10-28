@@ -27,6 +27,12 @@ TOKEN_MAX_AGE = int(os.environ.get('SISIP_TOKEN_MAX_AGE', str(12 * 3600)))
 
 CORS_ORIGINS = os.environ.get('SISIP_CORS_ORIGINS', '*').strip()
 
+# Kunci bersama dengan SIA untuk link masuk /sso/sia (HMAC-SHA256). Kosong = jalur
+# SSO mati. Terpisah dari SECRET_KEY; lihat routes/sso.py.
+SIA_SSO_SECRET = os.environ.get('SISIP_SIA_SSO_SECRET', '').strip()
+# Link SSO berlaku sekian detik sejak dibuat SIA (juga toleransi selisih jam).
+SIA_SSO_MAX_SKEW = 120
+
 ROLES = ('admin', 'dpa', 'kaprodi', 'dekan', 'bapsi')
 # BAPSI hanya mengelola berkas mahasiswa; menu dan API prediksi bukan untuknya.
 PREDIKSI_ROLES = ('admin', 'dpa', 'kaprodi', 'dekan')

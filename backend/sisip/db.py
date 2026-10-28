@@ -157,6 +157,25 @@ def init_db():
         )
     ''')
 
+    # SSO dari SIA: nonce yang sudah dipakai (supaya link hanya berlaku sekali)
+    # dan catatan setiap percobaan masuk beserta hasilnya.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS sso_nonce (
+            nonce TEXT PRIMARY KEY,
+            expires_at INTEGER NOT NULL
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS sso_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            at TEXT NOT NULL,
+            sia_id TEXT,
+            user_id INTEGER,
+            result TEXT NOT NULL,
+            ip TEXT
+        )
+    ''')
+
     _migrate_columns(c, {
         'batches': [('uploaded_by', 'TEXT'), ('semester', 'TEXT'),
                     ('user_id', 'INTEGER'), ('deleted_at', 'TEXT')],

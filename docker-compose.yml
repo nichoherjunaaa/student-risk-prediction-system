@@ -16,6 +16,7 @@ services:
       SISIP_TOKEN_MAX_AGE: ${SISIP_TOKEN_MAX_AGE:-43200}
       SISIP_CORS_ORIGINS: ${SISIP_CORS_ORIGINS:-*}
       SISIP_SEED_DEMO_USERS: ${SISIP_SEED_DEMO_USERS:-1}
+      SISIP_SIA_SSO_SECRET: ${SISIP_SIA_SSO_SECRET:-}
     volumes:
       - sisip-data:/data
     healthcheck:

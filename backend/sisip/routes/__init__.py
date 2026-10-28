@@ -1,5 +1,5 @@
 """Blueprint Flask, satu modul per area fitur."""
-from . import auth, files, history, prediction, preprocess, settings, training, users
+from . import auth, files, history, prediction, preprocess, settings, sso, training, users
 
 BLUEPRINTS = [m.bp for m in (auth, users, files, preprocess, training, prediction,
-                             history, settings)]
+                             history, settings, sso)]

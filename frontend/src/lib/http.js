@@ -20,7 +20,10 @@ axios.interceptors.request.use((config) => {
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // 401 dari SSO berarti link SIA ditolak, bukan sesi habis: halaman SsoSia
+    // yang menampilkan pesannya.
+    const fromSso = error.config?.url?.startsWith("/api/sso/");
+    if (error.response?.status === 401 && !fromSso) {
       clearSession();
       if (window.location.pathname !== "/login") {
         window.location.assign("/login");
