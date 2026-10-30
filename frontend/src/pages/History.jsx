@@ -141,7 +141,7 @@ const History = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <ButtonLink
-                          to={`/batch/${batch.id}`}
+                          to={`/batch/${batch.id}?from=history`}
                           variant="secondary"
                           size="sm"
                           aria-label={`Tinjau batch ${batch.batch_name}`}

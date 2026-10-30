@@ -8,6 +8,7 @@ import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { detailSemester, ipkSemester, totalSks, formatIpk, formatSks } from '../lib/akademik';
+import { readAsal, asalParams, withQuery } from '../lib/navigasi';
 
 const DetailStudent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -15,6 +16,7 @@ const DetailStudent = () => {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const batchId = searchParams.get('batch');
+  const asal = readAsal(location.search);
   
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -142,7 +144,7 @@ const DetailStudent = () => {
         
         <div className="flex-1 overflow-y-auto p-8">
           <div className="max-w-[96rem] mx-auto mb-6">
-            <Link to={batchId ? `/batch/${batchId}` : "/results"} className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-primary transition-colors bg-white px-4 py-2 rounded-lg border border-border shadow-sm">
+            <Link to={batchId ? withQuery(`/batch/${batchId}`, asalParams(asal)) : "/results"} className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-primary transition-colors bg-white px-4 py-2 rounded-lg border border-border shadow-sm">
               <ArrowLeft className="h-4 w-4 mr-2" /> {batchId ? "Kembali ke Daftar Mahasiswa" : "Kembali ke Hasil Prediksi"}
             </Link>
           </div>
@@ -227,7 +229,7 @@ const DetailStudent = () => {
                 <Button onClick={handlePrintProfile}>
                   <Printer className="h-4 w-4" /> Unduh Profil (PDF)
                 </Button>
-                <ButtonLink variant="secondary" to={`/courses/${nim}${batchId ? `?batch=${batchId}` : ''}`}>
+                <ButtonLink variant="secondary" to={withQuery(`/courses/${nim}`, batchId ? { batch: batchId, ...asalParams(asal) } : {})}>
                   <BookOpen className="h-4 w-4" /> Detail Mata Kuliah
                 </ButtonLink>
               </div>

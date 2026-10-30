@@ -8,13 +8,15 @@ import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { detailSemester, ipkSemester, formatIpk } from '../lib/akademik';
+import { readAsal, asalParams, withQuery, kembaliDariBatch } from '../lib/navigasi';
 
 const DetailBatch = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { id } = useParams();
   const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const filterParam = searchParams.get('filter') || 'sisip'; // 'sisip' or 'tidak_sisip'
+  const asal = readAsal(location.search);
+  const filterParam = asal.filter;
+  const kembali = kembaliDariBatch(asal);
   
   const [batch, setBatch] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ const DetailBatch = () => {
         <Sidebar isOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         <main className="flex-1 flex flex-col h-full items-center justify-center">
           <p className="text-red-500">Batch tidak ditemukan atau terjadi kesalahan saat memuat data.</p>
-          <Link to="/history" className="mt-4 text-primary underline">Kembali ke Log Riwayat</Link>
+          <Link to={kembali.to} className="mt-4 text-primary underline">{kembali.label}</Link>
         </main>
       </div>
     );
@@ -117,8 +119,8 @@ const DetailBatch = () => {
         
         <div className="flex-1 overflow-y-auto p-8">
           <div className="max-w-[96rem] mx-auto mb-6">
-            <Link to="/history" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-primary transition-colors bg-white px-4 py-2 rounded-lg border border-border shadow-sm">
-              <ArrowLeft className="h-4 w-4 mr-2" /> Kembali ke Log Riwayat
+            <Link to={kembali.to} className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-primary transition-colors bg-white px-4 py-2 rounded-lg border border-border shadow-sm">
+              <ArrowLeft className="h-4 w-4 mr-2" /> {kembali.label}
             </Link>
           </div>
 
@@ -191,7 +193,7 @@ const DetailBatch = () => {
                         </td>
                       ))}
                       <td className="px-6 py-4 text-right">
-                        <Link to={`/detail/${student.nim}?batch=${id}`} className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${student.is_risk ? 'text-red-700 bg-red-100 border border-red-200 hover:bg-red-200' : 'text-green-700 bg-green-100 border border-green-200 hover:bg-green-200'}`}>
+                        <Link to={withQuery(`/detail/${student.nim}`, { batch: id, ...asalParams(asal) })} className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${student.is_risk ? 'text-red-700 bg-red-100 border border-red-200 hover:bg-red-200' : 'text-green-700 bg-green-100 border border-green-200 hover:bg-green-200'}`}>
                           Lihat Detail
                         </Link>
                       </td>

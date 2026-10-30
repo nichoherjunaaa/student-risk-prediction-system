@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { readAsal, asalParams, withQuery } from '../lib/navigasi';
 
 const DetailCourses = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -11,6 +12,7 @@ const DetailCourses = () => {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const batchId = searchParams.get('batch');
+  const asal = readAsal(location.search);
   
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -78,7 +80,7 @@ const DetailCourses = () => {
         <div className="flex-1 overflow-y-auto p-8 relative z-10">
           <div className="max-w-[96rem] mx-auto">
             <div className="mb-6">
-              <Link to={`/detail/${nim}${batchId ? `?batch=${batchId}` : ''}`} className="inline-flex items-center text-gray-500 hover:text-primary transition-colors font-medium">
+              <Link to={withQuery(`/detail/${nim}`, batchId ? { batch: batchId, ...asalParams(asal) } : {})} className="inline-flex items-center text-gray-500 hover:text-primary transition-colors font-medium">
                 <ArrowLeft className="h-5 w-5 mr-2" /> Kembali ke Profil Mahasiswa
               </Link>
             </div>

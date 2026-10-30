@@ -14,6 +14,7 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { clearSession } from "../lib/session";
 import { PREDIKSI_ROLES, roleLabel } from "../lib/roles";
+import { readAsal } from "../lib/navigasi";
 
 // Menu dikelompokkan mengikuti alur kerja: siapkan data & model dulu, baru
 // jalankan prediksi, sisanya administrasi. `match` menentukan menu induk mana
@@ -67,8 +68,10 @@ const MENU_GROUPS = [
         to: "/results",
         label: "Hasil Prediksi",
         icon: BarChart2,
-        match: (p) =>
-          p === "/results" || p.startsWith("/detail/") || p.startsWith("/courses/"),
+        // Halaman batch & detail menyala di sini kecuali dibuka dari Log Riwayat.
+        match: (p, s) =>
+          p === "/results" ||
+          (/^\/(batch|detail|courses)\//.test(p) && readAsal(s).from !== "history"),
       },
     ],
   },
@@ -97,7 +100,9 @@ const MENU_GROUPS = [
         to: "/history",
         label: "Log Riwayat",
         icon: History,
-        match: (p) => p === "/history" || p.startsWith("/batch/"),
+        match: (p, s) =>
+          p === "/history" ||
+          (/^\/(batch|detail|courses)\//.test(p) && readAsal(s).from === "history"),
       },
     ],
   },
@@ -186,7 +191,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               </p>
               <div className="space-y-2">
                 {group.items.map(({ to, label, icon: Icon, match }) => {
-                  const active = match(currentPath);
+                  const active = match(currentPath, location.search);
                   return (
                     <Link
                       key={to}

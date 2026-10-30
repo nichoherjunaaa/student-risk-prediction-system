@@ -240,13 +240,18 @@ async function predictFlow(page, request, account, G, { pilihProdi } = {}) {
   const token = await apiToken(request, account)
   const { batches } = await (await request.get('/api/history', auth(token))).json()
   expect(batches.length).toBeGreaterThan(0)
+  // Alamat yang sama dengan klik batang chart di Hasil Prediksi (tanpa from).
   await page.goto(`/batch/${batches[0].id}`)
   await expect(page.locator('a[href^="/detail/"]').first()).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Kembali ke Hasil Prediksi' })).toBeVisible()
   await shot(page, G, '03-detail-batch')
   await download(page, () => page.getByRole('button', { name: 'Unduh Laporan' }).click())
 
   await page.locator('a[href^="/detail/"]').first().click()
   await expect(page).toHaveURL(/\/detail\//)
+  // Kembali dari detail mahasiswa membawa filter daftar yang sama.
+  await expect(page.getByRole('link', { name: 'Kembali ke Daftar Mahasiswa' }))
+    .toHaveAttribute('href', new RegExp(`/batch/${batches[0].id}\\?filter=sisip$`))
   await expect(page.getByRole('button', { name: /Unduh Profil/ })).toBeVisible()
   await shot(page, G, '04-detail-mahasiswa')
   await download(page, () => page.getByRole('button', { name: /Unduh Profil/ }).click())
