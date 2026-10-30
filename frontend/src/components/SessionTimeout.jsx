@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { clearSession } from '../lib/session';
-import { LogOut, CheckCircle } from 'lucide-react';
+import { LogOut, Clock } from 'lucide-react';
+import Button from './Button';
+
+const COUNTDOWN_SECONDS = 30;
+// Lingkaran hitung mundur (SVG): keliling dipakai untuk strokeDasharray.
+const RING_RADIUS = 34;
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
 const SessionTimeout = () => {
   const [isIdle, setIsIdle] = useState(false);
-  const [countdown, setCountdown] = useState(30); // 30 seconds countdown
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const timerRef = useRef(null);
   const countdownRef = useRef(null);
   const navigate = useNavigate();
@@ -22,7 +28,7 @@ const SessionTimeout = () => {
     
     timerRef.current = setTimeout(() => {
       setIsIdle(true);
-      setCountdown(30);
+      setCountdown(COUNTDOWN_SECONDS);
     }, IDLE_TIMEOUT);
   };
 
@@ -75,29 +81,55 @@ const SessionTimeout = () => {
 
   if (!isIdle) return null;
 
+  const sisa = countdown / COUNTDOWN_SECONDS;
+
   return (
-    <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center animate-in zoom-in-95 duration-200">
-        <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <span className="text-yellow-600 font-bold text-2xl">{countdown}</span>
-        </div>
-        <h3 className="text-xl font-bold text-gray-800 mb-2">Sesi Berakhir?</h3>
-        <p className="text-gray-500 text-sm mb-6">
-          Tidak ada aktivitas yang terdeteksi selama beberapa waktu. Apakah Anda ingin tetap login?
-        </p>
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={handleLogout}
-            className="flex-1 flex justify-center items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition"
-          >
-            <LogOut size={16} /> Keluar
-          </button>
-          <button
-            onClick={handleStayLoggedIn}
-            className="flex-1 flex justify-center items-center gap-2 px-4 py-2 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition"
-          >
-            <CheckCircle size={16} /> Ya, Tetap Login
-          </button>
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="session-timeout-title"
+      aria-describedby="session-timeout-desc"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+    >
+      <div className="bg-surface rounded-2xl shadow-xl border border-border w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+        <div className="flex flex-col items-center text-center">
+          <div className="relative h-20 w-20 mb-4">
+            <svg className="h-20 w-20 -rotate-90" viewBox="0 0 80 80" aria-hidden="true">
+              <circle cx="40" cy="40" r={RING_RADIUS} fill="none" strokeWidth="6" className="stroke-amber-100" />
+              <circle
+                cx="40"
+                cy="40"
+                r={RING_RADIUS}
+                fill="none"
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={RING_LENGTH}
+                strokeDashoffset={RING_LENGTH * (1 - sisa)}
+                className="stroke-amber-500 transition-[stroke-dashoffset] duration-1000 ease-linear"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-bold text-secondary leading-none tabular-nums">{countdown}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mt-0.5">detik</span>
+            </div>
+          </div>
+
+          <h3 id="session-timeout-title" className="text-xl font-bold text-secondary mb-2 flex items-center gap-2">
+            <Clock size={20} className="text-amber-500" /> Sesi Akan Berakhir
+          </h3>
+          <p id="session-timeout-desc" className="text-sm text-gray-600 mb-6 max-w-xs">
+            Tidak ada aktivitas selama {IDLE_TIMEOUT / 60000} menit. Anda akan keluar otomatis dalam{" "}
+            <span className="font-semibold text-secondary">{countdown} detik</span>.
+          </p>
+
+          <div className="flex gap-3 w-full">
+            <Button variant="secondary" size="lg" block onClick={handleLogout}>
+              <LogOut size={16} /> Keluar
+            </Button>
+            <Button size="lg" block onClick={handleStayLoggedIn} autoFocus>
+              Tetap Masuk
+            </Button>
+          </div>
         </div>
       </div>
     </div>
