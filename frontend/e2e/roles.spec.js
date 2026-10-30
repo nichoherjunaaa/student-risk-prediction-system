@@ -14,7 +14,7 @@ const ROLES = [
       ['/admin/format-data', 'format-data'],
       ['/admin/preprocessing', 'preprocessing'],
       ['/admin/model', 'master-model'],
-      ['/upload', 'unggah-data'],
+      ['/prediksi', 'buat-prediksi'],
       ['/results', 'hasil-prediksi'],
       ['/berkas', 'berkas-mahasiswa'],
       ['/admin/users', 'master-pengguna'],
@@ -27,9 +27,9 @@ const ROLES = [
     role: 'dpa',
     nip: '900000000000000002',
     password: 'Dpa#2026',
-    home: '/upload',
+    home: '/prediksi',
     pages: [
-      ['/upload', 'unggah-data'],
+      ['/prediksi', 'buat-prediksi'],
       ['/results', 'hasil-prediksi'],
       ['/berkas', 'berkas-mahasiswa'],
     ],
@@ -39,9 +39,9 @@ const ROLES = [
     role: 'kaprodi',
     nip: '900000000000000003',
     password: 'Kaprodi#2026',
-    home: '/upload',
+    home: '/prediksi',
     pages: [
-      ['/upload', 'unggah-data'],
+      ['/prediksi', 'buat-prediksi'],
       ['/results', 'hasil-prediksi'],
       ['/berkas', 'berkas-mahasiswa'],
     ],
@@ -51,9 +51,9 @@ const ROLES = [
     role: 'dekan',
     nip: DEKAN.nip,
     password: DEKAN.password,
-    home: '/upload',
+    home: '/prediksi',
     pages: [
-      ['/upload', 'unggah-data'],
+      ['/prediksi', 'buat-prediksi'],
       ['/results', 'hasil-prediksi'],
       ['/berkas', 'berkas-mahasiswa'],
     ],
@@ -65,7 +65,7 @@ const ROLES = [
     password: 'Bapsi#2026',
     home: '/berkas',
     pages: [['/berkas', 'berkas-mahasiswa']],
-    forbidden: ['/upload', '/results', '/admin/users', '/admin/model'],
+    forbidden: ['/prediksi', '/results', '/admin/users', '/admin/model'],
   },
 ]
 
@@ -109,7 +109,7 @@ test('route terlindungi tanpa login dialihkan ke /login', async ({ page }) => {
 for (const acc of ROLES) {
   test.describe(`role ${acc.role}`, () => {
     test('login, buka semua halaman yang diizinkan, cek larangan, logout', async ({ page, request }) => {
-      // Halaman Unggah Data memeriksa berkas BAPSI di server; untuk prodi yang tidak
+      // Halaman Buat Prediksi memeriksa berkas BAPSI di server; untuk prodi yang tidak
       // ada di berkas, pemeriksaan itu bisa ~30 detik per kunjungan.
       test.setTimeout(4 * 60_000)
       const pageErrors = []

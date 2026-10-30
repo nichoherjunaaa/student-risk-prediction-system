@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, AlertTriangle, TrendingUp, Download, UploadCloud } from 'lucide-react';
+import { Users, AlertTriangle, TrendingUp, Download, Sparkles } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import Button, { ButtonLink } from '../components/Button';
@@ -203,18 +203,18 @@ const Results = () => {
           {!hasPrediction && (
             <div className="mb-8 max-w-[96rem] mx-auto bg-surface rounded-2xl border border-border shadow-sm p-10 text-center">
               <div className="h-14 w-14 rounded-full bg-primary/5 border border-primary/20 flex items-center justify-center mx-auto mb-4">
-                <UploadCloud className="h-7 w-7 text-primary" />
+                <Sparkles className="h-7 w-7 text-primary" />
               </div>
               <h2 className="text-lg font-bold text-secondary mb-1">
                 Belum ada hasil prediksi di sesi ini
               </h2>
               <p className="text-sm text-gray-500 max-w-lg mx-auto mb-6">
-                Unggah berkas rekap nilai mahasiswa untuk menjalankan prediksi.
+                Buat prediksi dari berkas terbaru di Berkas Mahasiswa.
                 Grafik di bawah tetap menampilkan riwayat prediksi yang pernah
                 dijalankan per program studi.
               </p>
-              <ButtonLink to="/upload" size="lg">
-                <UploadCloud className="h-4 w-4" /> Unggah Data
+              <ButtonLink to="/prediksi" size="lg">
+                <Sparkles className="h-4 w-4" /> Buat Prediksi
               </ButtonLink>
             </div>
           )}

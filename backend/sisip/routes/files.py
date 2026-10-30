@@ -73,16 +73,6 @@ _INFO_SELECT = ("SELECT f.id, f.original_name, f.stored_name, f.folder_id, f.upl
                 "FROM files f LEFT JOIN users u ON u.id = f.uploaded_by WHERE f.deleted_at IS NULL")
 
 
-def file_info(file_id, kategori):
-    """Berkas aktif pilihan pengguna, hanya bila kategorinya sesuai."""
-    conn = connect()
-    try:
-        return _file_row_info(conn, conn.execute(_INFO_SELECT + ' AND f.id = ? AND f.kategori = ?',
-                                                 (file_id, kategori)).fetchone())
-    finally:
-        conn.close()
-
-
 def latest_file(kategori):
     """Berkas terbaru satu kategori yang masih aktif (dipakai prediksi otomatis)."""
     conn = connect()

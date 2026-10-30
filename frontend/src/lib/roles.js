@@ -35,5 +35,5 @@ export function roleLabel(role) {
 export function homePath(role) {
   if (role === "admin") return "/admin/model";
   if (role === "bapsi") return "/berkas";
-  return "/upload";
+  return "/prediksi";
 }

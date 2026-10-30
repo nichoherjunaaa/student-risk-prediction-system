@@ -154,7 +154,7 @@ test('02 BAPSI mengelola folder dan mengunggah berkas', async ({ page }) => {
   await page.getByRole('button', { name: 'Tampilan daftar' }).click()
 
   // BAPSI tidak boleh membuka menu prediksi.
-  await page.goto('/upload')
+  await page.goto('/prediksi')
   await expect(page).toHaveURL(/\/berkas$/)
   await logout(page)
 })
@@ -224,15 +224,15 @@ async function runPrediction(page) {
 }
 
 // Prediksi dari berkas BAPSI, lalu telusuri hasil sampai detail mata kuliah.
-// Dropdown prodi di kartu prediksi (di atasnya ada dropdown berkas PMB & akademik).
+// Dropdown prodi di kartu prediksi; berkas PMB & akademik dipilih server (selalu terbaru).
 const prodiSelect = (page) => page.locator('main select').filter({ hasText: '-- Pilih Program Studi --' })
 
 async function predictFlow(page, request, account, G, { pilihProdi } = {}) {
-  await page.goto('/upload')
+  await page.goto('/prediksi')
   if (pilihProdi) await prodiSelect(page).selectOption(pilihProdi)
   await expect(page.getByText('Berkas PMB', { exact: true })).toBeVisible({ timeout: 120_000 })
   await expect(page.getByRole('button', { name: 'Jalankan Prediksi' })).toBeEnabled()
-  await shot(page, G, '01-unggah-otomatis-siap')
+  await shot(page, G, '01-prediksi-siap')
   await runPrediction(page)
   await shot(page, G, '02-hasil-prediksi')
   await download(page, () => page.getByRole('button', { name: 'Unduh Laporan' }).click())
@@ -259,7 +259,10 @@ async function predictFlow(page, request, account, G, { pilihProdi } = {}) {
 test('05 DPA memprediksi dari berkas', async ({ page, request }) => {
   test.setTimeout(6 * 60_000)
   await loginOk(page, cred(USERS.dpa))
-  await expect(page).toHaveURL(/\/upload$/)
+  await expect(page).toHaveURL(/\/prediksi$/)
+  // Alamat lama (dulu "Unggah Data") dialihkan ke halaman prediksi.
+  await page.goto('/upload')
+  await expect(page).toHaveURL(/\/prediksi$/)
   await predictFlow(page, request, cred(USERS.dpa), '05-dpa-prediksi')
   await logout(page)
 })

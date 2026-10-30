@@ -5,7 +5,7 @@ import AutoPredictCard from "../components/AutoPredictCard";
 import { useProdiScope } from "../lib/prodi";
 import { useNavigate } from "react-router-dom";
 
-const Upload = () => {
+const BuatPrediksi = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictProgress, setPredictProgress] = useState(0);
@@ -65,8 +65,8 @@ const Upload = () => {
       <div className="flex-1 flex flex-col overflow-y-auto">
         <Header
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          title="Unggah Data"
-          subtitle="Jalankan prediksi sisip program dari berkas di Berkas Mahasiswa."
+          title="Buat Prediksi"
+          subtitle="Prediksi sisip program dari berkas terbaru di Berkas Mahasiswa."
         />
 
         <main className="p-6 space-y-6 max-w-[96rem] w-full mx-auto">
@@ -102,4 +102,4 @@ const Upload = () => {
     </div>
   );
 };
-export default Upload;
+export default BuatPrediksi;

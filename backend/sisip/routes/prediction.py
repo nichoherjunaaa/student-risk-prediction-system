@@ -12,7 +12,7 @@ from ..predictor import (PredictError, align_features, build_results, coverage_e
 from ..preprocessing import MAX_SEMESTER_LIMIT, PreprocessError, build_prediction_table
 from ..settings_store import current_format
 from ..utils import norm_str
-from .files import file_info, latest_file
+from .files import latest_file
 
 bp = Blueprint('prediction', __name__)
 
@@ -47,17 +47,14 @@ _TABLE_CACHE = OrderedDict()
 _TABLE_CACHE_SIZE = 8
 
 
-def _source_files(form):
-    """Berkas PMB & akademik: pilihan eksplisit (id) atau yang terbaru."""
+def _source_files():
+    """Berkas PMB & akademik terbaru di Berkas Mahasiswa; prediksi selalu memakai
+    unggahan terakhir BAPSI, tanpa pilihan berkas."""
     chosen = {}
     for kategori in ('pmb', 'akademik'):
-        file_id = form.get(f'file_{kategori}_id')
-        info = file_info(file_id, kategori) if file_id else latest_file(kategori)
-        judul = 'PMB' if kategori == 'pmb' else 'akademik'
-        if not info and file_id:
-            raise PredictError(f"Berkas {judul} yang dipilih tidak ditemukan atau sudah dihapus. "
-                               "Pilih berkas lain.")
+        info = latest_file(kategori)
         if not info:
+            judul = 'PMB' if kategori == 'pmb' else 'akademik'
             raise PredictError(f"Belum ada berkas {judul} di Berkas Mahasiswa. "
                                "Minta BAPSI mengunggah berkas terbaru terlebih dahulu.")
         chosen[kategori] = info
@@ -116,13 +113,13 @@ def _model_info(am, semester=None, source=None):
 @bp.route('/api/predict/sumber', methods=['GET'])
 @require_role(*PREDIKSI_ROLES)
 def prediction_source():
-    """Yang akan dipakai prediksi: berkas pilihan (default terbaru), model aktif,
+    """Yang akan dipakai prediksi: berkas terbaru, model aktif,
     batas semester, dan angkatan yang tersedia untuk prodi ini."""
     prodi = scoped_prodi(request.args.get('prodi') or None)
     if not prodi:
         return jsonify({'error': 'Pilih program studi terlebih dahulu.'}), 400
     try:
-        files = _source_files(request.args)
+        files = _source_files()
         am = load_active_model(prodi)
         fmt = current_format()
         semester, source = _model_semester(am, files, prodi, fmt)
@@ -152,7 +149,7 @@ def predict_from_files():
         return jsonify({'error': 'Pilih angkatan yang akan diprediksi.'}), 400
 
     try:
-        files = _source_files(data)
+        files = _source_files()
         am = load_active_model(prodi)
         if not am.feature_cols:
             raise PredictError("Model aktif tidak menyimpan nama kolom fitur. Lakukan training ulang.")

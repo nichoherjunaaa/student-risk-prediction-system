@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { BarChart2, Database, Cpu, AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import { BarChart2, Database, Cpu, AlertTriangle, Loader2, RefreshCw, FileText } from "lucide-react";
 import axios from "axios";
 import Button from "./Button";
 
 // Prediksi dari Berkas Mahasiswa: server membentuk tabel uji (setara sheet TEST_SEM<n>
 // di cnn_tabular_2d_v2.py) langsung dari berkas PMB & akademik di Berkas
-// Mahasiswa, lalu memprediksi dengan model aktif prodi. Berkas terbaru dipilih
-// otomatis, tetapi bisa diganti bila BAPSI mengunggah lebih dari satu berkas.
+// Mahasiswa, lalu memprediksi dengan model aktif prodi. Server selalu memakai
+// berkas terbaru; halaman ini hanya menampilkan berkas yang dipakai.
 
 const SUMBER = [
   { key: "pmb", judul: "Berkas PMB" },
@@ -36,27 +36,6 @@ const AutoPredictCard = ({ prodi, setProdi, prodiList, lockedProdi, runWithProgr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [angkatan, setAngkatan] = useState("");
-  const [daftarBerkas, setDaftarBerkas] = useState({ pmb: null, akademik: null });
-  const [pilihan, setPilihan] = useState({ pmb: "", akademik: "" });
-
-  useEffect(() => {
-    SUMBER.forEach(({ key }) => {
-      axios
-        .get("/api/files", { params: { kategori: key } })
-        .then((r) => {
-          const list = r.data.files;
-          setDaftarBerkas((prev) => ({ ...prev, [key]: list }));
-          setPilihan((prev) => ({ ...prev, [key]: list[0] ? String(list[0].id) : "" }));
-        })
-        .catch(() => setDaftarBerkas((prev) => ({ ...prev, [key]: [] })));
-    });
-  }, []);
-
-  const berkasParams = {
-    ...(pilihan.pmb && { file_pmb_id: pilihan.pmb }),
-    ...(pilihan.akademik && { file_akademik_id: pilihan.akademik }),
-  };
-  const berkasSiap = daftarBerkas.pmb !== null && daftarBerkas.akademik !== null;
 
   const loadSumber = async (target) => {
     if (!target) {
@@ -67,7 +46,7 @@ const AutoPredictCard = ({ prodi, setProdi, prodiList, lockedProdi, runWithProgr
     setError("");
     setSumber(null);
     try {
-      const r = await axios.get("/api/predict/sumber", { params: { prodi: target, ...berkasParams } });
+      const r = await axios.get("/api/predict/sumber", { params: { prodi: target } });
       setSumber(r.data);
       // Angkatan termuda biasanya yang sedang dipantau.
       setAngkatan(r.data.angkatan[r.data.angkatan.length - 1] || "");
@@ -77,15 +56,14 @@ const AutoPredictCard = ({ prodi, setProdi, prodiList, lockedProdi, runWithProgr
     setLoading(false);
   };
 
-  // Tunggu daftar berkas termuat supaya pemeriksaan memakai berkas yang tampil di dropdown.
   useEffect(() => {
-    if (berkasSiap) loadSumber(prodi);
-  }, [prodi, pilihan.pmb, pilihan.akademik, berkasSiap]);
+    loadSumber(prodi);
+  }, [prodi]);
 
   const handlePredict = () => {
     setError("");
     runWithProgress(
-      () => axios.post("/api/predict/berkas", { prodi, angkatan, ...berkasParams }),
+      () => axios.post("/api/predict/berkas", { prodi, angkatan }),
       (msg) => setError(msg),
     );
   };
@@ -98,45 +76,9 @@ const AutoPredictCard = ({ prodi, setProdi, prodiList, lockedProdi, runWithProgr
         <Database className="text-primary" /> Prediksi dari Berkas Mahasiswa
       </h2>
       <p className="text-sm text-gray-500 max-w-3xl mb-6">
-        Sistem mengolah berkas PMB dan akademik yang diunggah BAPSI dengan cara yang sama seperti
-        data latih model, lalu memprediksi seluruh mahasiswa pada
-        angkatan yang dipilih.
+        Sistem mengolah berkas PMB dan akademik terbaru yang diunggah BAPSI dengan cara yang sama
+        seperti data latih model, lalu memprediksi seluruh mahasiswa pada angkatan yang dipilih.
       </p>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        {SUMBER.map(({ key, judul }) => {
-          const daftar = daftarBerkas[key];
-          return (
-            <div key={key}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">{judul}</label>
-              {daftar === null ? (
-                <p className="px-4 py-3 text-sm text-gray-400 flex items-center gap-2">
-                  <Loader2 size={14} className="animate-spin" /> Memuat berkas...
-                </p>
-              ) : daftar.length === 0 ? (
-                <p className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">
-                  Belum ada {judul.toLowerCase()} yang diunggah BAPSI.
-                </p>
-              ) : (
-                <select
-                  value={pilihan[key]}
-                  onChange={(e) => setPilihan((prev) => ({ ...prev, [key]: e.target.value }))}
-                  aria-label={`Pilih ${judul}`}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-                >
-                  {daftar.map((f, i) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                      {f.path ? ` (${f.path})` : ""} - {formatDate(f.uploaded_at)}
-                      {i === 0 ? " - terbaru" : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          );
-        })}
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div>
@@ -193,7 +135,19 @@ const AutoPredictCard = ({ prodi, setProdi, prodiList, lockedProdi, runWithProgr
       )}
 
       {sumber && (
-        <div className="mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {SUMBER.map(({ key, judul }) => {
+            const berkas = sumber.berkas[key];
+            return (
+              <InfoRow key={key} icon={FileText} label={judul}>
+                <span className="font-medium break-all">{berkas.name}</span>
+                <span className="block text-xs text-gray-500">
+                  Terbaru, diunggah {formatDate(berkas.uploaded_at)}
+                  {berkas.uploaded_by ? ` oleh ${berkas.uploaded_by}` : ""}
+                </span>
+              </InfoRow>
+            );
+          })}
           <InfoRow icon={Cpu} label="Model Aktif">
             <span className="font-medium break-all">{model.version}</span>
             <span className="block text-xs text-gray-500">Dilatih {model.trained_at}</span>

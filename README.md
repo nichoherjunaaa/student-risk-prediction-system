@@ -165,9 +165,8 @@ Setelah Backend dan Frontend berhasil dijalankan, ikuti langkah-langkah berikut 
 
 5. **Melakukan Prediksi Mahasiswa**:
    - *Logout* dari akun Admin, lalu *Login* menggunakan akun DPA/Dosen yang baru saja dibuat.
-   - Buka menu **Unggah Data**.
-   - Pilih Program Studi, Angkatan, dan Semester yang sesuai.
-   - Unggah data Excel mahasiswa semester berjalan (pastikan *header* tabel sesuai dengan format yang dilatih) lalu klik **Jalankan Prediksi Sistem**.
+   - Buka menu **Buat Prediksi**.
+   - Pilih Program Studi dan Angkatan, lalu klik **Jalankan Prediksi**. Sistem selalu memakai berkas PMB & akademik terbaru yang diunggah BAPSI di **Berkas Mahasiswa**; berkas yang dipakai ditampilkan di halaman.
    - Anda dapat meninjau hasil secara rinci pada menu **Hasil Prediksi** atau melihat ringkasan historis pada menu **Log Riwayat** (hanya tersedia untuk Admin).
 
 ---

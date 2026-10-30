@@ -6,7 +6,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import Login from "./pages/Login";
-import Upload from "./pages/Upload";
+import BuatPrediksi from "./pages/BuatPrediksi";
 import Results from "./pages/Results";
 import History from "./pages/History";
 import DetailStudent from "./pages/DetailStudent";
@@ -54,7 +54,9 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/sso/sia" element={<SsoSia />} />
 
-        <Route path="/upload" element={<ProtectedRoute roles={PREDIKSI_ROLES}><Upload /></ProtectedRoute>} />
+        <Route path="/prediksi" element={<ProtectedRoute roles={PREDIKSI_ROLES}><BuatPrediksi /></ProtectedRoute>} />
+        {/* Alamat lama halaman prediksi (dulu "Unggah Data"). */}
+        <Route path="/upload" element={<Navigate to="/prediksi" replace />} />
         <Route path="/results" element={<ProtectedRoute roles={PREDIKSI_ROLES}><Results /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute roles={ADMIN}><History /></ProtectedRoute>} />
         <Route path="/detail/:nim" element={<ProtectedRoute roles={PREDIKSI_ROLES}><DetailStudent /></ProtectedRoute>} />

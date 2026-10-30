@@ -536,6 +536,10 @@ def run():
     check('sumber prediksi memakai berkas terbaru',
           r.status_code == 200 and src['berkas']['pmb']['name'] == 'PMB terbaru.csv'
           and src['berkas']['akademik']['name'] == 'Akademik terbaru.csv', src)
+    r = client.get(f'/api/predict/sumber?prodi={prodi}&file_akademik_id={akd_id}', headers=auth(dpa_tok))
+    check('id berkas lama diabaikan, tetap pakai berkas terbaru',
+          r.status_code == 200 and r.get_json()['berkas']['akademik']['name'] == 'Akademik terbaru.csv',
+          r.get_json())
     check('batas semester model lama diperkirakan = 3 (TRAIN_SEM3)',
           src.get('model', {}).get('max_semester') == 3 and src['model']['max_semester_source'] == 'perkiraan',
           src.get('model'))

@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  UploadCloud,
+  Sparkles,
   BarChart2,
   History,
   LogOut,
@@ -58,10 +58,10 @@ const MENU_GROUPS = [
     roles: PREDIKSI_ROLES,
     items: [
       {
-        to: "/upload",
-        label: "Unggah Data",
-        icon: UploadCloud,
-        match: (p) => p === "/upload",
+        to: "/prediksi",
+        label: "Buat Prediksi",
+        icon: Sparkles,
+        match: (p) => p === "/prediksi",
       },
       {
         to: "/results",
