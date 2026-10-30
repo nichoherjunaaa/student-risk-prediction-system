@@ -59,6 +59,10 @@ MISSING_GRADE = 'E'
 # dengan mapel lain tetap mendapat kolomnya.
 RAPOR_MAPEL = ('Matematika', 'Bahasa Inggris', 'Bahasa Indonesia')
 MAX_SEMESTER_LIMIT = 8
+# Daftar mahasiswa & label data latih selalu ditentukan sampai semester ini,
+# berapa pun batas semester kolomnya: TRAIN_SEM1/2/3 di DATA MAHASISWA 20-24.xlsx
+# memuat 604 NIM yang sama dengan label yang sama; hanya kolom yang dipotong.
+LABEL_SEMESTER = 3
 
 
 def _source_rename(fmt, key):
@@ -468,12 +472,14 @@ def build_training_table(pmb_file, akademik_file, prodi=None, max_semester=3, fm
             f"Berkas akademik tidak memuat kolom '{fmt.ak['kolom_label']}' sebagai target, "
             "sehingga data latih tidak bisa dibentuk."
         )
-    # Mahasiswa yang berhenti sebelum batas semester tidak pernah diberi label di
-    # berkas akademik. TRAIN_SEM3 milik cnn_tabular_2d_v2.py justru memuatnya
-    # sebagai SISIP (mis. 22 mahasiswa ber-IPK 0); tanpa contoh ini model tidak
-    # mengenal pola mahasiswa berhenti dan menebaknya TIDAK SISIP.
+    # Mahasiswa yang berhenti sebelum semester LABEL_SEMESTER tidak pernah diberi
+    # label di berkas akademik. TRAIN_SEM1/2/3 milik cnn_tabular_2d_v2.py justru
+    # memuatnya sebagai SISIP (mis. 22 mahasiswa ber-IPK 0); tanpa contoh ini
+    # model tidak mengenal pola mahasiswa berhenti dan menebaknya TIDAK SISIP.
+    # Batasnya tidak ikut max_semester: pada TRAIN_SEM1, mahasiswa yang berhenti
+    # setelah semester 1 tetap ada sebagai SISIP.
     smt = df['NIM'].map(terakhir)
-    berhenti = df[LABEL_COL].isna() & (smt < max_semester)
+    berhenti = df[LABEL_COL].isna() & (smt < max(max_semester, LABEL_SEMESTER))
     df.loc[berhenti, LABEL_COL] = LABEL_RISIKO
     tanpa_label = int(df[LABEL_COL].isna().sum())
     df = df[df[LABEL_COL].notna()]

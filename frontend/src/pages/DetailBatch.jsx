@@ -7,6 +7,7 @@ import Button from '../components/Button';
 import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { detailSemester, ipkSemester, formatIpk } from '../lib/akademik';
 
 const DetailBatch = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -54,6 +55,7 @@ const DetailBatch = () => {
     );
   }
 
+  const semester = detailSemester({}, batch.semester);
   const sisipRate = batch.total_records > 0 ? ((batch.at_risk / batch.total_records) * 100).toFixed(1) : 0;
   
   const flaggedStudents = batch.results.filter(r => {
@@ -167,7 +169,7 @@ const DetailBatch = () => {
                   <tr>
                     <th scope="col" className="px-6 py-4 font-semibold w-1/4">NIM</th>
                     <th scope="col" className="px-6 py-4 font-semibold w-1/4">Nama Mahasiswa</th>
-                    <th scope="col" className="px-6 py-4 font-semibold w-1/4">IPK Semester 3</th>
+                    <th scope="col" className="px-6 py-4 font-semibold w-1/4">IPK Semester {semester}</th>
                     <th scope="col" className="px-6 py-4 font-semibold text-right w-1/4">Aksi</th>
                   </tr>
                 </thead>
@@ -180,7 +182,7 @@ const DetailBatch = () => {
                       <td className="px-6 py-4">{details.nama || '-'}</td>
                       <td className="px-6 py-4">
                         <span className="bg-gray-100 text-secondary text-xs font-bold px-2 py-1 rounded">
-                          {typeof details.ipk3 === 'number' ? details.ipk3.toFixed(2) : '-'}
+                          {formatIpk(ipkSemester(details, detailSemester(details, batch.semester)))}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">

@@ -65,7 +65,7 @@ def get_student(nim):
     
     if batch_id:
         c.execute('''
-            SELECT p.*, b.batch_name, b.date_uploaded 
+            SELECT p.*, b.batch_name, b.date_uploaded, b.semester AS batch_semester
             FROM predictions p 
             JOIN batches b ON p.batch_id = b.id 
             WHERE p.nim = ? AND p.batch_id = ? AND b.user_id = ? AND b.deleted_at IS NULL
@@ -73,7 +73,7 @@ def get_student(nim):
     else:
         # Prediksi terbaru untuk NIM ini dari batch milik user sendiri
         c.execute('''
-            SELECT p.*, b.batch_name, b.date_uploaded 
+            SELECT p.*, b.batch_name, b.date_uploaded, b.semester AS batch_semester
             FROM predictions p 
             JOIN batches b ON p.batch_id = b.id 
             WHERE p.nim = ? AND b.user_id = ? AND b.deleted_at IS NULL

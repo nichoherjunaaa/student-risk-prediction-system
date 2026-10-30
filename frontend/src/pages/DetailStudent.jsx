@@ -7,6 +7,7 @@ import Button, { ButtonLink } from '../components/Button';
 import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { detailSemester, ipkSemester, totalSks, formatIpk, formatSks } from '../lib/akademik';
 
 const DetailStudent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -65,15 +66,14 @@ const DetailStudent = () => {
   const { 
     nama = '-', 
     prodi = '-', 
-    ipk1 = 0, 
-    ipk2 = 0, 
-    ipk3 = 0, 
-    sks3 = 0, 
     failed_subjects = [], 
     passed_subjects = [], 
     sks_passed = 0, 
     sks_failed = 0 
   } = details;
+  const semester = detailSemester(details, studentData.batch_semester);
+  const semesterList = Array.from({ length: semester }, (_, i) => i + 1);
+  const sks = totalSks(details, semester);
 
   const handlePrintProfile = () => {
     const doc = new jsPDF();
@@ -92,7 +92,7 @@ const DetailStudent = () => {
     doc.setFontSize(11);
     doc.text(`Hasil Prediksi: ${prediction}`, 14, 56);
     doc.text(`Status Risiko: ${is_risk ? 'Tinggi (Berpotensi Sisip)' : 'Aman'}`, 14, 62);
-    doc.text(`IPK Sem 1: ${ipk1.toFixed(2)} | IPK Sem 2: ${ipk2.toFixed(2)} | IPK Sem 3: ${ipk3.toFixed(2)}`, 14, 68);
+    doc.text(semesterList.map((k) => `IPK Sem ${k}: ${formatIpk(ipkSemester(details, k))}`).join(' | '), 14, 68);
     
     doc.text(`Total SKS Lulus: ${sks_passed} SKS | Total SKS Tidak Lulus: ${sks_failed} SKS`, 14, 76);
 
@@ -189,47 +189,25 @@ const DetailStudent = () => {
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div className="bg-gray-50 border border-border rounded-xl p-5 shadow-sm hover:border-primary/30 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">IPK 1</p>
-                      <p className="text-3xl font-bold text-secondary">{ipk1.toFixed(2)}</p>
-                    </div>
-                    <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-                      <TrendingDown className="h-5 w-5" />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gray-50 border border-border rounded-xl p-5 shadow-sm hover:border-primary/30 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">IPK 2</p>
-                      <p className="text-3xl font-bold text-secondary">{ipk2.toFixed(2)}</p>
-                    </div>
-                    <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-                      <TrendingDown className="h-5 w-5" />
+                {semesterList.map((k) => (
+                  <div key={k} className="bg-gray-50 border border-border rounded-xl p-5 shadow-sm hover:border-primary/30 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">IPK {k}</p>
+                        <p className="text-3xl font-bold text-secondary">{formatIpk(ipkSemester(details, k))}</p>
+                      </div>
+                      <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+                        <TrendingDown className="h-5 w-5" />
+                      </div>
                     </div>
                   </div>
-                </div>
+                ))}
 
                 <div className="bg-gray-50 border border-border rounded-xl p-5 shadow-sm hover:border-primary/30 transition-colors">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">IPK 3</p>
-                      <p className="text-3xl font-bold text-secondary">{ipk3.toFixed(2)}</p>
-                    </div>
-                    <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-                      <TrendingDown className="h-5 w-5" />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gray-50 border border-border rounded-xl p-5 shadow-sm hover:border-primary/30 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Total SKS 3</p>
-                      <p className="text-3xl font-bold text-secondary">{sks3}</p>
+                      <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Total SKS {semester}</p>
+                      <p className="text-3xl font-bold text-secondary">{formatSks(sks)}</p>
                     </div>
                     <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
                       <Layers className="h-5 w-5" />

@@ -23,7 +23,7 @@ def _predict_and_save(features, original_df, am, prodi, angkatan, semester, extr
     except Exception as proc_err:
         return jsonify({'error': f"Gagal memproses isi berkas untuk prodi {prodi}: {proc_err}"}), 400
     try:
-        results, at_risk, safe = build_results(original_df, labels, prodi, current_format())
+        results, at_risk, safe = build_results(original_df, labels, prodi, current_format(), semester)
     except Exception as build_err:
         return jsonify({'error': f"Gagal menyusun hasil prediksi: {build_err}"}), 500
     try:

@@ -151,32 +151,29 @@ def run_model(features, am):
     return am.le_y.inverse_transform(y_pred)
 
 
-def _safe_float(df, col, i):
-    """IPK bisa berisi teks/kosong pada berkas hasil edit manual; jangan sampai
-    satu sel rusak menjatuhkan seluruh permintaan dengan 500."""
+def _optional_num(df, col, i, cast=float):
+    """IPK/SKS bisa berisi teks/kosong pada berkas hasil edit manual; jangan sampai
+    satu sel rusak menjatuhkan seluruh permintaan dengan 500. Kolom/sel yang tidak
+    ada menjadi None (bukan 0) supaya tampilan bisa membedakannya dari IPK 0."""
     if col not in df.columns:
-        return 0.0
+        return None
     val = df[col].iloc[i]
     try:
-        return float(val) if not pd.isna(val) else 0.0
+        return cast(float(val)) if not pd.isna(val) else None
     except (TypeError, ValueError):
-        return 0.0
+        return None
 
 
-def _safe_int(df, col, i):
-    if col not in df.columns:
-        return 0
-    val = df[col].iloc[i]
-    try:
-        return int(float(val)) if not pd.isna(val) else 0
-    except (TypeError, ValueError):
-        return 0
-
-
-def build_results(original_df, labels, prodi, fmt):
+def build_results(original_df, labels, prodi, fmt, semester=None):
     """Hasil per mahasiswa untuk respons API dan tabel predictions."""
     sks_matkul = fmt.sks_per_matkul
     cols = original_df.columns
+    # Tabel uji hanya memuat IPK 1..n dan Total SKS n untuk batas semester n.
+    try:
+        semester = int(semester)
+    except (TypeError, ValueError):
+        semester = max([int(c.split()[-1]) for c in cols
+                        if str(c).startswith('IPK ') and str(c).split()[-1].isdigit()] or [3])
 
     def first(names, i, default):
         for n in names:
@@ -206,10 +203,9 @@ def build_results(original_df, labels, prodi, fmt):
         details = {
             'nama': str(nama),
             'prodi': str(prodi_val),
-            'ipk1': _safe_float(original_df, 'IPK 1', i),
-            'ipk2': _safe_float(original_df, 'IPK 2', i),
-            'ipk3': _safe_float(original_df, 'IPK 3', i),
-            'sks3': _safe_int(original_df, 'Total SKS 3', i),
+            'semester': semester,
+            **{f'ipk{k}': _optional_num(original_df, f'IPK {k}', i) for k in range(1, semester + 1)},
+            'total_sks': _optional_num(original_df, f'Total SKS {semester}', i, int),
             'failed_subjects': failed,
             'passed_subjects': passed,
             'sks_passed': sks_matkul * len(passed),

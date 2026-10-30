@@ -553,6 +553,10 @@ def run():
     check('semua fitur model terisi dari berkas', auto.get('sumber', {}).get('kecocokan_fitur') == 1.0,
           auto.get('sumber'))
     pred_auto = {x['nim']: x['prediction'] for x in auto.get('results', [])}
+    detail = json.loads(auto['results'][0]['details']) if auto.get('results') else {}
+    check('detail mencatat semester data & IPK sampai semester itu saja',
+          detail.get('semester') == 3 and {'ipk1', 'ipk2', 'ipk3', 'total_sks'} <= set(detail)
+          and 'ipk4' not in detail, detail)
 
     # Pembanding: langkah prediksi cnn_tabular_2d_v2.py ditulis ulang apa adanya,
     # memakai encoder/scaler/model dari berkas model aktif.
@@ -596,6 +600,12 @@ def run():
     xl = build_training_table(io.BytesIO(pmb_bytes), io.BytesIO(akd_bytes), prodi=prodi, max_semester=3)
     check('data latih dari CSV = dari Excel (kolom & jumlah mahasiswa)',
           pre.get('columns') == list(xl.df.columns) and pre['report']['mahasiswa'] == len(xl.df))
+    # TRAIN_SEM1/2/3 acuan memuat NIM & label yang sama; hanya kolomnya yang dipotong.
+    xl1 = build_training_table(io.BytesIO(pmb_bytes), io.BytesIO(akd_bytes), prodi=prodi, max_semester=1)
+    label = lambda t: dict(zip(t.df['NIM'], t.df['Label']))
+    check('TRAIN_SEM1 = TRAIN_SEM3: mahasiswa & label sama (mahasiswa berhenti tetap SISIP)',
+          label(xl1) == label(xl) and 'IPK 3' not in xl1.df.columns,
+          (len(xl1.df), len(xl.df)))
     latih = client.get(pre['download_url'], headers=auth(admin_tok)).data
     r = client.post('/api/train', headers=auth(admin_tok), content_type='multipart/form-data', data={
         'file': (io.BytesIO(latih), 'data_latih.xlsx'), 'prodi': prodi, 'epochs': '2'})
