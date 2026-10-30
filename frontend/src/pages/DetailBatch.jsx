@@ -56,6 +56,7 @@ const DetailBatch = () => {
   }
 
   const semester = detailSemester({}, batch.semester);
+  const semesterList = Array.from({ length: semester }, (_, i) => i + 1);
   const sisipRate = batch.total_records > 0 ? ((batch.at_risk / batch.total_records) * 100).toFixed(1) : 0;
   
   const flaggedStudents = batch.results.filter(r => {
@@ -167,10 +168,12 @@ const DetailBatch = () => {
               <table className="w-full text-left text-sm text-gray-600">
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-border">
                   <tr>
-                    <th scope="col" className="px-6 py-4 font-semibold w-1/4">NIM</th>
-                    <th scope="col" className="px-6 py-4 font-semibold w-1/4">Nama Mahasiswa</th>
-                    <th scope="col" className="px-6 py-4 font-semibold w-1/4">IPK Semester {semester}</th>
-                    <th scope="col" className="px-6 py-4 font-semibold text-right w-1/4">Aksi</th>
+                    <th scope="col" className="px-6 py-4 font-semibold">NIM</th>
+                    <th scope="col" className="px-6 py-4 font-semibold">Nama Mahasiswa</th>
+                    {semesterList.map((k) => (
+                      <th key={k} scope="col" className="px-4 py-4 font-semibold text-center whitespace-nowrap">IPK {k}</th>
+                    ))}
+                    <th scope="col" className="px-6 py-4 font-semibold text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -180,11 +183,13 @@ const DetailBatch = () => {
                     <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                       <td className="px-6 py-4 font-medium text-secondary">{student.nim}</td>
                       <td className="px-6 py-4">{details.nama || '-'}</td>
-                      <td className="px-6 py-4">
-                        <span className="bg-gray-100 text-secondary text-xs font-bold px-2 py-1 rounded">
-                          {formatIpk(ipkSemester(details, detailSemester(details, batch.semester)))}
-                        </span>
-                      </td>
+                      {semesterList.map((k) => (
+                        <td key={k} className="px-4 py-4 text-center">
+                          <span className="bg-gray-100 text-secondary text-xs font-bold px-2 py-1 rounded">
+                            {formatIpk(ipkSemester(details, k))}
+                          </span>
+                        </td>
+                      ))}
                       <td className="px-6 py-4 text-right">
                         <Link to={`/detail/${student.nim}?batch=${id}`} className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${student.is_risk ? 'text-red-700 bg-red-100 border border-red-200 hover:bg-red-200' : 'text-green-700 bg-green-100 border border-green-200 hover:bg-green-200'}`}>
                           Lihat Detail
@@ -195,7 +200,7 @@ const DetailBatch = () => {
                   })}
                   {flaggedStudents.length === 0 && (
                     <tr className="bg-white">
-                      <td colSpan="4" className="px-6 py-4 text-center text-gray-500">{emptyText}</td>
+                      <td colSpan={semester + 3} className="px-6 py-4 text-center text-gray-500">{emptyText}</td>
                     </tr>
                   )}
                 </tbody>

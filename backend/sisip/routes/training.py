@@ -61,6 +61,27 @@ def _recall_sisip(model, X_val, y_val, le_y, n_classes):
     return caught / total, caught, total
 
 
+def _angkatan_list(series):
+    return sorted({norm_str(a) for a in series.dropna() if str(a).strip()})
+
+
+@bp.route('/api/train/angkatan', methods=['POST'])
+@require_role('admin')
+def train_angkatan():
+    """Angkatan yang ada di berkas data latih, sebagai pilihan di form latih
+    (supaya admin tidak mengetik angkatan bebas)."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    try:
+        excel_file = pd.ExcelFile(request.files['file'])
+        sheet, _ = _pick_train_sheet(excel_file.sheet_names, request.form.get('semester'))
+        df = pd.read_excel(excel_file, sheet_name=sheet, usecols=lambda c: c == 'Angkatan')
+    except Exception as e:
+        return jsonify({'error': f"Berkas data latih tidak dapat dibaca: {e}"}), 400
+    angkatan = _angkatan_list(df['Angkatan']) if 'Angkatan' in df.columns else []
+    return jsonify({'sheet': sheet, 'angkatan': angkatan})
+
+
 @bp.route('/api/train', methods=['POST'])
 @require_role('admin')
 def train_model():
@@ -115,9 +136,9 @@ def train_model():
         # form kosong berarti semua angkatan di berkas ikut dilatih.
         trained_angkatan = None
         if 'Angkatan' in df.columns:
-            daftar_angkatan = {norm_str(a) for a in df['Angkatan'].dropna() if str(a).strip()}
+            daftar_angkatan = _angkatan_list(df['Angkatan'])
             if daftar_angkatan:
-                trained_angkatan = ', '.join(sorted(daftar_angkatan))
+                trained_angkatan = ', '.join(daftar_angkatan)
 
     except Exception as e:
         return jsonify({'error': str(e)}), 400

@@ -617,6 +617,13 @@ def run():
 
     df_latih = pd.read_excel(io.BytesIO(latih), sheet_name='TRAIN_SEM3')
     semua_angkatan = sorted({norm_str(a) for a in df_latih['Angkatan'].dropna()})
+    r = client.post('/api/train/angkatan', headers=auth(admin_tok), content_type='multipart/form-data',
+                    data={'file': (io.BytesIO(latih), 'data_latih.xlsx')})
+    check('pilihan angkatan form latih dibaca dari berkas',
+          r.status_code == 200 and r.get_json()['angkatan'] == semua_angkatan, r.get_json())
+    r = client.post('/api/train/angkatan', headers=auth(dpa_tok), content_type='multipart/form-data',
+                    data={'file': (io.BytesIO(latih), 'data_latih.xlsx')})
+    check('pilihan angkatan hanya untuk admin -> 403', r.status_code == 403)
     model_baru = client.get('/api/models?page=1', headers=auth(admin_tok)).get_json()['items'][0]
     check('tanpa filter: angkatan model = semua angkatan di berkas',
           model_baru['angkatan'] == ', '.join(semua_angkatan), (model_baru['angkatan'], semua_angkatan))

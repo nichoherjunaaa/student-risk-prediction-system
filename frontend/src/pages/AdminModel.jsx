@@ -70,7 +70,10 @@ const AdminModel = () => {
   const [isTraining, setIsTraining] = useState(false);
   const [trainProgress, setTrainProgress] = useState(0);
 
-  const [angkatan, setAngkatan] = useState("");
+  // Pilihan angkatan dibaca server dari berkas yang dipilih: null = belum ada
+  // berkas, "loading" = sedang dibaca, array = angkatan yang ada di berkas.
+  const [angkatanOptions, setAngkatanOptions] = useState(null);
+  const [angkatanDipilih, setAngkatanDipilih] = useState([]);
 
   // State Hyperparameter Eksperimen Model
   const [epochs, setEpochs] = useState(100);
@@ -109,18 +112,41 @@ const AdminModel = () => {
     setHistoryLoading(false);
   };
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-      setError("");
+  const handleFileChange = async (e) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const picked = e.target.files[0];
+    setFile(picked);
+    setError("");
+    setAngkatanOptions("loading");
+    setAngkatanDipilih([]);
+    const formData = new FormData();
+    formData.append("file", picked);
+    try {
+      const { data } = await axios.post("/api/train/angkatan", formData);
+      setAngkatanOptions(data.angkatan);
+      setAngkatanDipilih(data.angkatan);
+    } catch (err) {
+      setAngkatanOptions([]);
+      setError(err.response?.data?.error || "Gagal membaca angkatan dari berkas data latih.");
     }
   };
+
+  const toggleAngkatan = (a) =>
+    setAngkatanDipilih((prev) =>
+      prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a].sort(),
+    );
+  const semuaAngkatan = Array.isArray(angkatanOptions) ? angkatanOptions : [];
+  const semuaDipilih = semuaAngkatan.length > 0 && angkatanDipilih.length === semuaAngkatan.length;
 
   const handleTrain = async () => {
     if (!file) {
       setError(
         "Silakan tentukan berkas Excel data latih historis terlebih dahulu.",
       );
+      return;
+    }
+    if (semuaAngkatan.length > 0 && angkatanDipilih.length === 0) {
+      setError("Pilih minimal satu tahun angkatan untuk dilatih.");
       return;
     }
     setLoading(true);
@@ -136,7 +162,8 @@ const AdminModel = () => {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("angkatan", angkatan);
+    // Semua angkatan dipilih = tanpa filter (server melatih seluruh berkas).
+    formData.append("angkatan", semuaDipilih ? "" : angkatanDipilih.join(","));
     formData.append("epochs", epochs);
     formData.append("batch_size", batchSize);
     formData.append("learning_rate", learningRate);
@@ -157,6 +184,8 @@ const AdminModel = () => {
         setModelMetrics({ ...response.data.metrics, prodi: response.data.prodi });
         setShowSuccessModal(true);
         setFile(null);
+        setAngkatanOptions(null);
+        setAngkatanDipilih([]);
         fetchModelHistory(1);
       }, 600);
     } catch (err) {
@@ -220,18 +249,57 @@ const AdminModel = () => {
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <fieldset className="md:col-span-2 lg:col-span-4">
+                <legend className="block text-sm font-semibold text-gray-700 mb-2">
                   Tahun Angkatan Latih
-                </label>
-                <input
-                  type="text"
-                  placeholder="Contoh: 2020, 2021"
-                  value={angkatan}
-                  onChange={(e) => setAngkatan(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition text-sm"
-                />
-              </div>
+                </legend>
+                {angkatanOptions === null ? (
+                  <p className="text-sm text-gray-500">
+                    Pilih berkas data latih di bawah; angkatan yang ada di berkas akan muncul di sini.
+                  </p>
+                ) : angkatanOptions === "loading" ? (
+                  <p className="text-sm text-gray-500 flex items-center gap-2">
+                    <Loader2 size={14} className="animate-spin" /> Membaca angkatan dari berkas...
+                  </p>
+                ) : semuaAngkatan.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Berkas tidak memuat kolom Angkatan; seluruh data dilatih.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      aria-pressed={semuaDipilih}
+                      onClick={() => setAngkatanDipilih(semuaDipilih ? [] : semuaAngkatan)}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-semibold transition ${
+                        semuaDipilih
+                          ? "bg-primary text-white border-primary"
+                          : "bg-surface text-secondary border-border hover:bg-gray-50"
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    {semuaAngkatan.map((a) => {
+                      const aktif = angkatanDipilih.includes(a);
+                      return (
+                        <button
+                          key={a}
+                          type="button"
+                          aria-pressed={aktif}
+                          onClick={() => toggleAngkatan(a)}
+                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition ${
+                            aktif
+                              ? "bg-primary/10 text-primary border-primary/40"
+                              : "bg-surface text-gray-500 border-border hover:bg-gray-50"
+                          }`}
+                        >
+                          {a}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </fieldset>
 
               {SHOW_HYPERPARAMS && (
                 <>
